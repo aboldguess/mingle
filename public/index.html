@@ -26,7 +26,9 @@
   </div>
 
   <!-- Main A-Frame scene. Removing 'embedded' allows full-screen rendering -->
-  <a-scene>
+  <!-- Disable the default loading screen so the environment appears even if the
+       webcam stream takes a while to initialise. -->
+  <a-scene loading-screen="enabled: false">
     <a-assets>
       <!--
         Include the video element used for the local webcam feed. The `muted`
@@ -50,6 +52,8 @@
     </a-entity>
   </a-scene>
 
+  <!-- Configuration script exposes server side debug flag -->
+  <script src="/config.js"></script>
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.2/dist/socket.io.min.js"></script>
   <script src="js/mingle_client.js"></script>

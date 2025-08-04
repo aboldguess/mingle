@@ -5,15 +5,29 @@
 const socket = io();
 const avatar = document.getElementById('avatar');
 const cameraRig = document.getElementById('rig');
+const sceneEl = document.querySelector('a-scene');
+
+// Simple helpers that only log when debug mode is enabled. The flag is
+// injected by the server via /config.js.
+function debugLog(...args) {
+  if (window.MINGLE_DEBUG) {
+    console.log(...args);
+  }
+}
+function debugError(...args) {
+  if (window.MINGLE_DEBUG) {
+    console.error(...args);
+  }
+}
 
 // Log when the A-Frame scene has finished initialising which helps debug
 // stuck loading screens.
-document.querySelector('a-scene').addEventListener('loaded', () => {
-  console.log('A-Frame scene loaded');
+sceneEl.addEventListener('loaded', () => {
+  debugLog('A-Frame scene loaded');
 });
 
 // Debug: log connection status
-socket.on('connect', () => console.log('Connected to server', socket.id));
+socket.on('connect', () => debugLog('Connected to server', socket.id));
 
 // Capture webcam
 navigator.mediaDevices.getUserMedia({ video: true, audio: false })
@@ -24,15 +38,27 @@ navigator.mediaDevices.getUserMedia({ video: true, audio: false })
     // prevents the A-Frame loader from stalling waiting for the video.
     videoEl.muted = true;
     videoEl.srcObject = stream;
-    videoEl.onloadeddata = () => console.log('Webcam video element loaded');
+    videoEl.onloadeddata = () => {
+      debugLog('Webcam video element loaded');
+      // Ensure the scene is considered loaded once the video is ready.
+      sceneEl.emit('loaded');
+    };
 
     // Some browsers require an explicit play() call. Log success/failure for
     // easier debugging.
     videoEl.play()
-      .then(() => console.log('Webcam stream started'))
-      .catch(err => console.error('Webcam playback failed', err));
+      .then(() => debugLog('Webcam stream started'))
+      .catch(err => debugError('Webcam playback failed', err));
   })
-  .catch(err => console.error('Could not start webcam', err));
+  .catch(err => {
+    // If the webcam cannot start, log the error (in debug mode), inform the
+    // user on-screen and force the scene to continue loading to avoid the
+    // perpetual blue loading screen.
+    debugError('Could not start webcam', err);
+    sceneEl.emit('loaded');
+    document.getElementById('instructions').innerHTML +=
+      '<p>Webcam unavailable. Check camera permissions.</p>';
+  });
 
 // Send current position to server at regular intervals
 setInterval(() => {
