@@ -40,8 +40,9 @@ navigator.mediaDevices.getUserMedia({ video: true, audio: false })
     videoEl.srcObject = stream;
     videoEl.onloadeddata = () => {
       debugLog('Webcam video element loaded');
-      // Ensure the scene is considered loaded once the video is ready.
-      sceneEl.emit('loaded');
+      // The scene is already visible because the default loading screen is
+      // disabled, so we avoid manually firing the 'loaded' event which could
+      // trigger A-Frame initialisation before its renderer is ready.
     };
 
     // Some browsers require an explicit play() call. Log success/failure for
@@ -51,11 +52,10 @@ navigator.mediaDevices.getUserMedia({ video: true, audio: false })
       .catch(err => debugError('Webcam playback failed', err));
   })
   .catch(err => {
-    // If the webcam cannot start, log the error (in debug mode), inform the
-    // user on-screen and force the scene to continue loading to avoid the
-    // perpetual blue loading screen.
+    // If the webcam cannot start, log the error (in debug mode) and inform the
+    // user on-screen. The scene still renders thanks to the disabled loading
+    // screen.
     debugError('Could not start webcam', err);
-    sceneEl.emit('loaded');
     document.getElementById('instructions').innerHTML +=
       '<p>Webcam unavailable. Check camera permissions.</p>';
   });
