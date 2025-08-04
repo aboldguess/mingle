@@ -56,6 +56,10 @@ function movementLoop(time) {
   const dt = (time - lastMove) / 1000;
   lastMove = time;
 
+  // Keep the player's rotation perfectly in sync with the camera so the avatar
+  // pitches and yaws exactly with mouse movement.
+  player.object3D.rotation.copy(playerCamera.object3D.rotation);
+
   const dir = new THREE.Vector3();
   if (keys.w) dir.z -= 1;
   if (keys.s) dir.z += 1;
@@ -64,8 +68,8 @@ function movementLoop(time) {
 
   if (dir.lengthSq() > 0) {
     dir.normalize();
-    // Apply the camera's current yaw to move relative to where the avatar faces
-    const yaw = playerCamera.object3D.rotation.y;
+    // Apply the player's current yaw so movement is relative to facing
+    const yaw = player.object3D.rotation.y;
     dir.applyEuler(new THREE.Euler(0, yaw, 0));
     player.object3D.position.addScaledVector(dir, MOVE_SPEED * dt);
   }
@@ -109,10 +113,9 @@ navigator.mediaDevices.getUserMedia({ video: true, audio: false })
 // driven by the camera's look-controls, so we copy that rotation onto the player
 // entity before broadcasting.
 setInterval(() => {
-  const camRotation = playerCamera.getAttribute('rotation');
-  player.setAttribute('rotation', camRotation);
   const position = player.getAttribute('position');
-  socket.emit('position', { position, rotation: camRotation });
+  const rotation = player.getAttribute('rotation');
+  socket.emit('position', { position, rotation });
 }, 100);
 
 // Toggle spectate mode by pressing 'p'. When enabled the main camera is switched
