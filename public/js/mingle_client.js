@@ -4,7 +4,9 @@
 // Establish socket connection to the server and cache DOM references.
 const socket = io();
 const avatar = document.getElementById('avatar');
-const cameraRig = document.getElementById('rig');
+const player = document.getElementById('player');
+const playerCamera = document.getElementById('playerCamera');
+const spectateCam = document.getElementById('spectateCam');
 const sceneEl = document.querySelector('a-scene');
 
 // Simple helpers that only log when debug mode is enabled. The flag is
@@ -60,12 +62,35 @@ navigator.mediaDevices.getUserMedia({ video: true, audio: false })
       '<p>Webcam unavailable. Check camera permissions.</p>';
   });
 
-// Send current position to server at regular intervals
+// Send current position to server at regular intervals. The player's rotation is
+// driven by the camera's look-controls, so we copy that rotation onto the player
+// entity before broadcasting.
 setInterval(() => {
-  const position = cameraRig.getAttribute('position');
-  const rotation = cameraRig.getAttribute('rotation');
-  socket.emit('position', { position, rotation });
+  const camRotation = playerCamera.getAttribute('rotation');
+  player.setAttribute('rotation', camRotation);
+  const position = player.getAttribute('position');
+  socket.emit('position', { position, rotation: camRotation });
 }, 100);
+
+// Toggle spectate mode by pressing 'p'. When enabled the main camera is switched
+// to a fixed spectator view but controls still move the hidden player avatar.
+let spectating = false;
+document.addEventListener('keydown', (e) => {
+  if (e.key.toLowerCase() === 'p') {
+    spectating = !spectating;
+    if (spectating) {
+      playerCamera.setAttribute('camera', 'active', false);
+      spectateCam.setAttribute('camera', 'active', true);
+      spectateCam.setAttribute('visible', true);
+      debugLog('Spectate mode enabled');
+    } else {
+      spectateCam.setAttribute('camera', 'active', false);
+      spectateCam.setAttribute('visible', false);
+      playerCamera.setAttribute('camera', 'active', true);
+      debugLog('Spectate mode disabled');
+    }
+  }
+});
 
 // Track remote avatars
 const remotes = {};
@@ -81,6 +106,7 @@ socket.on('position', data => {
     remotes[data.id] = box;
   }
   box.setAttribute('position', data.position);
+  box.setAttribute('rotation', data.rotation);
 });
 
 socket.on('disconnectClient', id => {
