@@ -18,6 +18,14 @@
       z-index: 100;
     }
   </style>
+  <!--
+    Load A-Frame and supporting libraries *before* the scene so that all
+    custom elements are registered when the HTML is parsed. The configuration
+    script exposes whether the server was launched in debug mode.
+  -->
+  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.2/dist/socket.io.min.js"></script>
+  <script src="/config.js"></script>
 </head>
 <body>
   <div id="instructions">
@@ -52,10 +60,7 @@
     </a-entity>
   </a-scene>
 
-  <!-- Configuration script exposes server side debug flag -->
-  <script src="/config.js"></script>
-  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.2/dist/socket.io.min.js"></script>
+  <!-- Client logic is loaded last once the DOM and libraries are ready -->
   <script src="js/mingle_client.js"></script>
 </body>
 </html>
