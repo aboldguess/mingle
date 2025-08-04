@@ -1,5 +1,7 @@
 const express = require('express');
+const fs = require('fs');
 const http = require('http');
+const https = require('https');
 const path = require('path');
 const { Server } = require('socket.io');
 
@@ -7,13 +9,35 @@ const { Server } = require('socket.io');
 // Port is configurable via PORT environment variable. Default is 3000.
 const PORT = process.env.PORT || 3000;
 const PROD = process.env.PROD === 'true';
+// Enable HTTPS by setting USE_HTTPS=true and providing certificate paths
+const USE_HTTPS = process.env.USE_HTTPS === 'true';
+const KEY_PATH = process.env.SSL_KEY || path.join(__dirname, 'certs', 'mingle.key');
+const CERT_PATH = process.env.SSL_CERT || path.join(__dirname, 'certs', 'mingle.cert');
 // Optional debug flag enabled via the --debug command line argument.
 // When active, additional runtime information is printed to the console which
 // assists in diagnosing issues during development.
 const DEBUG = process.argv.includes('--debug');
 
 const app = express();
-const server = http.createServer(app);
+
+// Create either an HTTP or HTTPS server depending on configuration. When HTTPS
+// is enabled the provided certificate is loaded. Fail early if certificates are
+// missing to aid troubleshooting.
+let server;
+if (USE_HTTPS) {
+  try {
+    const options = {
+      key: fs.readFileSync(KEY_PATH),
+      cert: fs.readFileSync(CERT_PATH),
+    };
+    server = https.createServer(options, app);
+  } catch (err) {
+    console.error('Failed to start HTTPS server. Check certificate paths.', err);
+    process.exit(1);
+  }
+} else {
+  server = http.createServer(app);
+}
 const io = new Server(server);
 
 // Serve static assets from public directory
@@ -50,8 +74,12 @@ io.on('connection', (socket) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`Mingle server running on port ${PORT} in ${PROD ? 'production' : 'development'} mode`);
+  const protocol = USE_HTTPS ? 'https' : 'http';
+  console.log(`Mingle server running on ${protocol}://localhost:${PORT} in ${PROD ? 'production' : 'development'} mode`);
   if (DEBUG) {
     console.log('Debug mode enabled');
+  }
+  if (USE_HTTPS) {
+    console.log('HTTPS enabled. Certificates loaded from:', KEY_PATH, CERT_PATH);
   }
 });

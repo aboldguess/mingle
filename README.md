@@ -4,10 +4,12 @@ Mingle is an experimental 3D video meeting environment. Each attendee controls a
 first-person avatar whose face displays a live webcam feed.
 
 ## Features
-- WASD + mouse look movement in a simple 3D scene
+- WASD + mouse look movement with the camera pinned to the avatar centre
+- Toggleable spectate mode to view the scene from a fixed overhead camera
 - Webcam feed mapped onto the local avatar
 - Basic multi-user position synchronisation via Socket.io
 - Configurable port via `PORT` environment variable
+- Optional HTTPS support for secure contexts (`USE_HTTPS=true`)
 - Verbose logs for easy debugging
 - Optional `--debug` flag to surface additional diagnostic information
 
@@ -15,23 +17,38 @@ first-person avatar whose face displays a live webcam feed.
 
 ### Linux / Raspberry Pi
 ```bash
-./setup_mingle_env.sh
-PORT=8080 npm start
+./setup_mingle_env.sh                # install dependencies
+./create_mingle_cert.sh             # optional: create self-signed cert
+PORT=8080 npm start                 # run over HTTP
+# HTTPS example:
+# USE_HTTPS=true PORT=8443 npm start
 # Optional: add --debug for verbose console logging
-# PORT=8080 npm start -- --debug
+# USE_HTTPS=true PORT=8443 npm start -- --debug
 ```
 
 ### Windows (PowerShell)
 ```powershell
-./setup_mingle_env.ps1
+./setup_mingle_env.ps1               # install dependencies
+./create_mingle_cert.ps1             # optional: create self-signed cert
 $env:PORT=8080
-npm start
+npm start                            # run over HTTP
+# HTTPS example:
+# $env:USE_HTTPS="true"
+# $env:PORT=8443
+# npm start
 # Optional: add --debug for verbose console logging
 # npm start -- --debug
 ```
 
 Once running, open your browser at `http://localhost:8080` (or the port you
-specified). Allow webcam access when prompted.
+specified). Mobile browsers require HTTPS to access device sensors; generate the
+self-signed certificate and start with `USE_HTTPS=true` to enable it.
+
+> The certificate scripts use OpenSSL. Install it beforehand if it is not already available.
+
+### Controls
+- `WASD` to move, mouse to look around
+- Press `P` to toggle spectate mode
 
 ### Troubleshooting
 If you see a blue screen with three loading dots, the webcam stream has not
