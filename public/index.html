@@ -5,8 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Mingle Prototype</title>
   <style>
-    body { margin: 0; font-family: Arial, sans-serif; }
-    #instructions { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.6); color: #fff; padding: 10px; z-index: 100; }
+    /* Make the scene occupy the full viewport */
+    html, body { width: 100%; height: 100%; margin: 0; font-family: Arial, sans-serif; }
+    a-scene { width: 100%; height: 100%; }
+    #instructions {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(0,0,0,0.6);
+      color: #fff;
+      padding: 10px;
+      z-index: 100;
+    }
   </style>
 </head>
 <body>
@@ -15,7 +25,8 @@
     <p>Your webcam feed appears on your avatar.</p>
   </div>
 
-  <a-scene embedded>
+  <!-- Main A-Frame scene. Removing 'embedded' allows full-screen rendering -->
+  <a-scene>
     <a-assets>
       <video id="localVideo" autoplay playsinline></video>
     </a-assets>
