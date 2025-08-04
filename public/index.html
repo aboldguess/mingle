@@ -29,7 +29,7 @@
 </head>
 <body>
   <div id="instructions">
-    <p>Use WASD to move and mouse to look.</p>
+    <p>Use WASD to move and mouse to look. Click to lock pointer.</p>
     <p>Press P to toggle spectate mode.</p>
   </div>
 
@@ -56,14 +56,16 @@
          `wasd-controls`. The avatar starts hidden so it does not obstruct the
          first-person view but becomes visible in spectate mode. -->
     <a-entity id="player" position="0 1.6 0">
-      <!-- Position the camera on the forward face of the avatar for a true
-           first-person perspective. -->
-      <a-camera id="playerCamera" position="0 0 -0.05" look-controls="pointerLockEnabled: true"></a-camera>
-      <a-box id="avatar" position="0 0 0" width="1" height="1" depth="0.1" material="src:#localVideo" visible="false"></a-box>
+      <!-- Position the camera exactly on the forward face of the avatar for a
+           true first-person perspective. The avatar is offset backwards so that
+           its textured face sits just behind the camera. -->
+      <a-camera id="playerCamera" position="0 0 0" look-controls="pointerLockEnabled: true"></a-camera>
+      <a-box id="avatar" position="0 0 0.05" width="1" height="1" depth="0.1" material="src:#localVideo" visible="false"></a-box>
     </a-entity>
 
-    <!-- Spectator camera fixed at a high corner for observing during tests -->
-    <a-camera id="spectateCam" position="5 8 5" rotation="-30 -45 0" visible="false"></a-camera>
+    <!-- Spectator camera fixed at the top corner with a wide field of view to
+         encompass the entire scene. -->
+    <a-camera id="spectateCam" position="10 10 10" rotation="-35 -45 0" fov="80" visible="false"></a-camera>
   </a-scene>
 
   <!-- Client logic is loaded last once the DOM and libraries are ready -->
