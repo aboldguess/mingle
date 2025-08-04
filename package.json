@@ -1,0 +1,14 @@
+{
+  "name": "mingle",
+  "version": "0.1.0",
+  "description": "Prototype 3D meeting platform with video avatars",
+  "main": "mingle_server.js",
+  "scripts": {
+    "start": "node mingle_server.js",
+    "dev": "node mingle_server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.7.2"
+  }
+}
