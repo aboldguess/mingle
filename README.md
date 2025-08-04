@@ -28,6 +28,11 @@ npm start
 Once running, open your browser at `http://localhost:8080` (or the port you
 specified). Allow webcam access when prompted.
 
+### Troubleshooting
+If you see a blue screen with three loading dots, the webcam stream has not
+started. Confirm that the browser has permission to use the camera and check the
+terminal or browser console for debug logs.
+
 ## Development Notes
 - Set `PROD=true` when starting the server to log production mode.
 - Server and client log connection and debugging information to the terminal

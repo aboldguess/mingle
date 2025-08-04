@@ -28,7 +28,12 @@
   <!-- Main A-Frame scene. Removing 'embedded' allows full-screen rendering -->
   <a-scene>
     <a-assets>
-      <video id="localVideo" autoplay playsinline></video>
+      <!--
+        Include the video element used for the local webcam feed. The `muted`
+        attribute ensures browsers allow autoplay which lets A-Frame finish
+        loading instead of leaving the user on the default blue loading screen.
+      -->
+      <video id="localVideo" autoplay playsinline muted></video>
     </a-assets>
 
     <!-- Simple floor and lighting -->

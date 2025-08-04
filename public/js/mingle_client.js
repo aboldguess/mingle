@@ -1,9 +1,16 @@
 // Client-side script for Mingle prototype
 // Captures webcam stream and sends avatar position to server for simple synchronization.
 
+// Establish socket connection to the server and cache DOM references.
 const socket = io();
 const avatar = document.getElementById('avatar');
 const cameraRig = document.getElementById('rig');
+
+// Log when the A-Frame scene has finished initialising which helps debug
+// stuck loading screens.
+document.querySelector('a-scene').addEventListener('loaded', () => {
+  console.log('A-Frame scene loaded');
+});
 
 // Debug: log connection status
 socket.on('connect', () => console.log('Connected to server', socket.id));
@@ -12,8 +19,18 @@ socket.on('connect', () => console.log('Connected to server', socket.id));
 navigator.mediaDevices.getUserMedia({ video: true, audio: false })
   .then(stream => {
     const videoEl = document.getElementById('localVideo');
+
+    // Attach the stream to the video element. Muting allows autoplay which
+    // prevents the A-Frame loader from stalling waiting for the video.
+    videoEl.muted = true;
     videoEl.srcObject = stream;
-    console.log('Webcam stream started');
+    videoEl.onloadeddata = () => console.log('Webcam video element loaded');
+
+    // Some browsers require an explicit play() call. Log success/failure for
+    // easier debugging.
+    videoEl.play()
+      .then(() => console.log('Webcam stream started'))
+      .catch(err => console.error('Webcam playback failed', err));
   })
   .catch(err => console.error('Could not start webcam', err));
 
