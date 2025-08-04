@@ -31,6 +31,49 @@ sceneEl.addEventListener('loaded', () => {
 // Debug: log connection status
 socket.on('connect', () => debugLog('Connected to server', socket.id));
 
+// ---------------------------------------------------------------------------
+// Custom movement handling
+// ---------------------------------------------------------------------------
+// Track the state of movement keys so that we can drive the player entity
+// manually. This avoids relying on A-Frame's wasd-controls which depend on the
+// currently active camera and caused erratic movement when spectating.
+const keys = { w: false, a: false, s: false, d: false };
+document.addEventListener('keydown', (e) => {
+  const k = e.key.toLowerCase();
+  if (k in keys) keys[k] = true;
+});
+document.addEventListener('keyup', (e) => {
+  const k = e.key.toLowerCase();
+  if (k in keys) keys[k] = false;
+});
+
+// Move the player a tiny amount each frame based on the pressed keys. Movement
+// is calculated relative to the player camera's yaw so that controls behave the
+// same whether in first-person or spectate mode.
+const MOVE_SPEED = 2; // metres per second
+let lastMove = performance.now();
+function movementLoop(time) {
+  const dt = (time - lastMove) / 1000;
+  lastMove = time;
+
+  const dir = new THREE.Vector3();
+  if (keys.w) dir.z -= 1;
+  if (keys.s) dir.z += 1;
+  if (keys.a) dir.x -= 1;
+  if (keys.d) dir.x += 1;
+
+  if (dir.lengthSq() > 0) {
+    dir.normalize();
+    // Apply the camera's current yaw to move relative to where the avatar faces
+    const yaw = playerCamera.object3D.rotation.y;
+    dir.applyEuler(new THREE.Euler(0, yaw, 0));
+    player.object3D.position.addScaledVector(dir, MOVE_SPEED * dt);
+  }
+
+  requestAnimationFrame(movementLoop);
+}
+requestAnimationFrame(movementLoop);
+
 // Capture webcam
 navigator.mediaDevices.getUserMedia({ video: true, audio: false })
   .then(stream => {
@@ -82,11 +125,13 @@ document.addEventListener('keydown', (e) => {
       playerCamera.setAttribute('camera', 'active', false);
       spectateCam.setAttribute('camera', 'active', true);
       spectateCam.setAttribute('visible', true);
+      avatar.setAttribute('visible', true); // show local avatar while spectating
       debugLog('Spectate mode enabled');
     } else {
       spectateCam.setAttribute('camera', 'active', false);
       spectateCam.setAttribute('visible', false);
       playerCamera.setAttribute('camera', 'active', true);
+      avatar.setAttribute('visible', false); // hide avatar for first-person view
       debugLog('Spectate mode disabled');
     }
   }
