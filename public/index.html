@@ -8,9 +8,52 @@
     /* Make the scene occupy the full viewport */
     html, body { width: 100%; height: 100%; margin: 0; font-family: Arial, sans-serif; }
     a-scene { width: 100%; height: 100%; }
+    /* Simple navigation bar anchored to the top of the page */
+    nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 50px;
+      background: #333;
+      color: #fff;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 10px;
+      z-index: 200;
+    }
+    nav a { color: #fff; text-decoration: none; font-weight: bold; }
+    .profile-menu { position: relative; }
+    .profile-button {
+      width: 40px;
+      height: 40px;
+      border-radius: 20px;
+      cursor: pointer;
+    }
+    .dropdown {
+      position: absolute;
+      right: 0;
+      top: 50px;
+      background: #fff;
+      color: #333;
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      border: 1px solid #ccc;
+      display: none;
+      min-width: 180px;
+    }
+    .dropdown li a {
+      display: block;
+      padding: 10px 15px;
+      color: #333;
+    }
+    .dropdown li a:hover { background: #f0f0f0; }
+    .dropdown.show { display: block; }
     #instructions {
       position: absolute;
-      top: 10px;
+      top: 60px;
       left: 10px;
       background: rgba(0,0,0,0.6);
       color: #fff;
@@ -28,9 +71,24 @@
   <script src="/config.js"></script>
 </head>
 <body>
+  <nav>
+    <div><a href="/index.html">Mingle</a></div>
+    <div class="profile-menu">
+      <img src="https://via.placeholder.com/40" alt="Profile" id="profileButton" class="profile-button" />
+      <ul id="profileDropdown" class="dropdown">
+        <li><a href="manage_profiles.html">Manage Profiles</a></li>
+        <li><a href="learning_zone.html">Learning Zone</a></li>
+        <li><a href="my_details.html">My Details</a></li>
+        <li><a href="subscription_details.html">Subscription Details</a></li>
+        <li><a href="manage_users.html">Manage Users</a></li>
+        <li><a href="#" id="signOut">Sign out</a></li>
+      </ul>
+    </div>
+  </nav>
   <div id="instructions">
     <p>Use WASD to move and mouse to look. Click to lock pointer.</p>
     <p>Press P to toggle spectate mode.</p>
+    <p>Use the profile button in the top-right to access account options.</p>
   </div>
 
   <!-- Main A-Frame scene. Removing 'embedded' allows full-screen rendering -->
@@ -70,5 +128,6 @@
 
   <!-- Client logic is loaded last once the DOM and libraries are ready -->
   <script src="js/mingle_client.js"></script>
+  <script src="js/mingle_navbar.js"></script>
 </body>
 </html>

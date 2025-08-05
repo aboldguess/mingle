@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Manage Users - Mingle</title>
+  <style>
+    html, body { margin:0; font-family: Arial, sans-serif; }
+    nav { position:fixed; top:0; left:0; right:0; height:50px; background:#333; color:#fff; display:flex; justify-content:space-between; align-items:center; padding:0 10px; z-index:100; }
+    nav a { color:#fff; text-decoration:none; font-weight:bold; }
+    .profile-menu { position:relative; }
+    .profile-button { width:40px; height:40px; border-radius:20px; cursor:pointer; }
+    .dropdown { position:absolute; right:0; top:50px; background:#fff; color:#333; list-style:none; padding:0; margin:0; border:1px solid #ccc; display:none; min-width:180px; }
+    .dropdown li a { display:block; padding:10px 15px; color:#333; }
+    .dropdown li a:hover { background:#f0f0f0; }
+    .dropdown.show { display:block; }
+    main { padding:70px 10px; }
+  </style>
+  <script src="/config.js"></script>
+</head>
+<body>
+  <nav>
+    <div><a href="/index.html">Mingle</a></div>
+    <div class="profile-menu">
+      <img src="https://via.placeholder.com/40" alt="Profile" id="profileButton" class="profile-button" />
+      <ul id="profileDropdown" class="dropdown">
+        <li><a href="manage_profiles.html">Manage Profiles</a></li>
+        <li><a href="learning_zone.html">Learning Zone</a></li>
+        <li><a href="my_details.html">My Details</a></li>
+        <li><a href="subscription_details.html">Subscription Details</a></li>
+        <li><a href="manage_users.html">Manage Users</a></li>
+        <li><a href="#" id="signOut">Sign out</a></li>
+      </ul>
+    </div>
+  </nav>
+  <main>
+    <h1>Manage Users</h1>
+    <p>Control user access and permissions from this screen. Use the profile menu to explore other areas or return to the main scene.</p>
+  </main>
+  <script src="js/mingle_navbar.js"></script>
+</body>
+</html>
