@@ -12,6 +12,7 @@ first-person avatar whose face displays a live webcam feed.
 - Optional HTTPS support for secure contexts (`USE_HTTPS=true`)
 - Verbose logs for easy debugging
 - Optional `--debug` flag to surface additional diagnostic information
+- Responsive navigation bar with profile menu linking to account management pages
 
 ## Quick Start
 
