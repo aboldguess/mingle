@@ -1,4 +1,16 @@
 <!DOCTYPE html>
+<!--
+  index.html
+  Mini README:
+  - Purpose: renders the main 3D meeting interface and surrounding UI chrome.
+  - Structure:
+    1. Page styling and navigation bar
+    2. On-screen usage instructions
+    3. A-Frame scene setup with assets, cameras and avatar
+    4. Client scripts for movement and navbar functionality
+  - Notes: A-Frame's default WASD controls are disabled on all cameras so that
+    movement is handled exclusively by custom code in mingle_client.js.
+-->
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -117,13 +129,13 @@
       <!-- Position the camera exactly on the forward face of the avatar for a
            true first-person perspective. The avatar is offset backwards so that
            its textured face sits just behind the camera. -->
-      <a-camera id="playerCamera" position="0 0 0" look-controls="pointerLockEnabled: true"></a-camera>
+      <a-camera id="playerCamera" position="0 0 0" look-controls="pointerLockEnabled: true" wasd-controls="enabled: false"></a-camera>
       <a-box id="avatar" position="0 0 0.05" width="1" height="1" depth="0.1" material="src:#localVideo" visible="false"></a-box>
     </a-entity>
 
     <!-- Spectator camera fixed at the top corner with a wide field of view to
          encompass the entire scene. -->
-    <a-camera id="spectateCam" position="10 10 10" rotation="-35 -45 0" fov="80" visible="false"></a-camera>
+    <a-camera id="spectateCam" position="10 10 10" rotation="-35 -45 0" fov="80" visible="false" wasd-controls="enabled: false"></a-camera>
   </a-scene>
 
   <!-- Client logic is loaded last once the DOM and libraries are ready -->
