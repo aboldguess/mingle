@@ -1,5 +1,16 @@
-// Client-side script for Mingle prototype
-// Captures webcam stream and sends avatar position to server for simple synchronization.
+/**
+ * mingle_client.js
+ * Mini README:
+ * - Purpose: client-side logic for the Mingle prototype. Handles local avatar
+ *   movement, webcam streaming, and position synchronisation with the server.
+ * - Structure:
+ *   1. Socket and DOM initialisation
+ *   2. Debug logging helpers
+ *   3. Custom WASD movement handler
+ *   4. Webcam capture and playback
+ *   5. Periodic server synchronisation and spectate mode toggling
+ *   6. Remote avatar tracking
+ */
 
 // Establish socket connection to the server and cache DOM references.
 const socket = io();
@@ -40,11 +51,18 @@ socket.on('connect', () => debugLog('Connected to server', socket.id));
 const keys = { w: false, a: false, s: false, d: false };
 document.addEventListener('keydown', (e) => {
   const k = e.key.toLowerCase();
-  if (k in keys) keys[k] = true;
+  if (k in keys) {
+    // Prevent the browser from processing the key so movement always works.
+    e.preventDefault();
+    keys[k] = true;
+  }
 });
 document.addEventListener('keyup', (e) => {
   const k = e.key.toLowerCase();
-  if (k in keys) keys[k] = false;
+  if (k in keys) {
+    e.preventDefault();
+    keys[k] = false;
+  }
 });
 
 // Move the player a tiny amount each frame based on the pressed keys. Movement
