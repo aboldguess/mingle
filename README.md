@@ -6,7 +6,7 @@ first-person avatar whose face displays a live webcam feed.
 ## Features
 - WASD + mouse look movement with the camera pinned to the avatar centre
 - Toggleable spectate mode to view the scene from a fixed overhead camera
-- Webcam feed mapped onto the local avatar
+- Webcam feed mapped onto the front face of the local avatar
 - Basic multi-user position synchronisation via Socket.io
 - Configurable port via `PORT` environment variable
 - Optional HTTPS support for secure contexts (`USE_HTTPS=true`)
