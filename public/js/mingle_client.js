@@ -6,10 +6,11 @@
  * - Structure:
  *   1. Socket and DOM initialisation
  *   2. Debug logging helpers
- *   3. Custom WASD movement handler and active camera tracking
- *   4. Webcam capture and playback
- *   5. Periodic server synchronisation and spectate mode toggling
- *   6. Remote avatar tracking
+ *   3. UI controls for spectating and camera viewpoints
+ *   4. Custom WASD movement handler and real-time status
+ *   5. Webcam capture and playback
+ *   6. Periodic server synchronisation
+ *   7. Remote avatar tracking
  */
 
 // Establish socket connection to the server and cache DOM references.
@@ -18,6 +19,10 @@ const avatar = document.getElementById('avatar');
 const player = document.getElementById('player');
 const playerCamera = document.getElementById('playerCamera');
 const spectateCam = document.getElementById('spectateCam');
+const spectateToggle = document.getElementById('spectateToggle');
+const fixCameraToggle = document.getElementById('fixCameraToggle');
+const statusEl = document.getElementById('status');
+const viewpointRadios = document.querySelectorAll('input[name="viewpoint"]');
 // Track which camera is currently feeding rotation data to the player.
 let activeCamera = playerCamera;
 
@@ -46,6 +51,91 @@ sceneEl.addEventListener('loaded', () => {
 
 // Debug: log connection status
 socket.on('connect', () => debugLog('Connected to server', socket.id));
+
+// ---------------------------------------------------------------------------
+// UI controls for spectating and camera viewpoints
+// ---------------------------------------------------------------------------
+const VIEWPOINTS = {
+  corner: {
+    position: { x: 10, y: 10, z: 10 },
+    rotation: { x: -35, y: -45, z: 0 },
+    offset: new THREE.Vector3(5, 5, 5)
+  },
+  top: {
+    position: { x: 0, y: 20, z: 0 },
+    rotation: { x: -90, y: 0, z: 0 },
+    offset: new THREE.Vector3(0, 10, 0)
+  },
+  behind: {
+    position: { x: 0, y: 3, z: -10 },
+    rotation: { x: 0, y: 0, z: 0 },
+    offset: new THREE.Vector3(0, 2, -5)
+  }
+};
+let currentView = 'corner';
+let followOffset = VIEWPOINTS[currentView].offset.clone();
+let spectating = false;
+
+function applyViewpoint() {
+  const vp = VIEWPOINTS[currentView];
+  if (fixCameraToggle.checked) {
+    followOffset.copy(vp.offset);
+    spectateCam.object3D.position.copy(player.object3D.position).add(followOffset);
+    spectateCam.object3D.lookAt(player.object3D.position);
+  } else {
+    spectateCam.setAttribute('position', vp.position);
+    spectateCam.setAttribute('rotation', vp.rotation);
+  }
+}
+
+function setSpectateMode(enabled) {
+  spectating = enabled;
+  if (spectating) {
+    playerCamera.setAttribute('camera', 'active', false);
+    spectateCam.setAttribute('camera', 'active', true);
+    spectateCam.setAttribute('visible', true);
+    spectateCam.setAttribute('wasd-controls', 'enabled', false);
+    activeCamera = spectateCam;
+    avatar.setAttribute('visible', true); // show local avatar while spectating
+    applyViewpoint();
+    debugLog('Spectate mode enabled');
+  } else {
+    spectateCam.setAttribute('camera', 'active', false);
+    spectateCam.setAttribute('visible', false);
+    playerCamera.setAttribute('camera', 'active', true);
+    activeCamera = playerCamera;
+    avatar.setAttribute('visible', false); // hide avatar for first-person view
+    debugLog('Spectate mode disabled');
+  }
+  spectateToggle.checked = spectating;
+  updateStatus();
+}
+
+function updateStatus() {
+  const pos = activeCamera.object3D.position;
+  statusEl.textContent = `Mode: ${spectating ? 'Spectate' : 'First-person'} | Camera: ${pos.x.toFixed(2)}, ${pos.y.toFixed(2)}, ${pos.z.toFixed(2)}`;
+}
+
+spectateToggle.addEventListener('change', () => setSpectateMode(spectateToggle.checked));
+fixCameraToggle.addEventListener('change', () => { applyViewpoint(); updateStatus(); });
+viewpointRadios.forEach(radio => {
+  radio.addEventListener('change', () => {
+    if (radio.checked) {
+      currentView = radio.value;
+      applyViewpoint();
+      updateStatus();
+      debugLog('Viewpoint changed to', currentView);
+    }
+  });
+});
+
+// Keyboard shortcut mirrors the checkbox for convenience
+document.addEventListener('keydown', (e) => {
+  if (e.key.toLowerCase() === 'p') {
+    setSpectateMode(!spectating);
+  }
+});
+updateStatus();
 
 // ---------------------------------------------------------------------------
 // Custom movement handling
@@ -97,6 +187,12 @@ function movementLoop(time) {
     player.object3D.position.addScaledVector(dir, MOVE_SPEED * dt);
   }
 
+  if (spectating && fixCameraToggle.checked) {
+    spectateCam.object3D.position.copy(player.object3D.position).add(followOffset);
+    spectateCam.object3D.lookAt(player.object3D.position);
+  }
+
+  updateStatus();
   requestAnimationFrame(movementLoop);
 }
 requestAnimationFrame(movementLoop);
@@ -140,31 +236,6 @@ setInterval(() => {
   const rotation = player.getAttribute('rotation');
   socket.emit('position', { position, rotation });
 }, 100);
-
-// Toggle spectate mode by pressing 'p'. When enabled the main camera is switched
-// to a fixed spectator view but controls still move the hidden player avatar.
-let spectating = false;
-document.addEventListener('keydown', (e) => {
-  if (e.key.toLowerCase() === 'p') {
-    spectating = !spectating;
-    if (spectating) {
-      playerCamera.setAttribute('camera', 'active', false);
-      spectateCam.setAttribute('camera', 'active', true);
-      spectateCam.setAttribute('visible', true);
-      spectateCam.setAttribute('wasd-controls', 'enabled', false);
-      activeCamera = spectateCam;
-      avatar.setAttribute('visible', true); // show local avatar while spectating
-      debugLog('Spectate mode enabled');
-    } else {
-      spectateCam.setAttribute('camera', 'active', false);
-      spectateCam.setAttribute('visible', false);
-      playerCamera.setAttribute('camera', 'active', true);
-      activeCamera = playerCamera;
-      avatar.setAttribute('visible', false); // hide avatar for first-person view
-      debugLog('Spectate mode disabled');
-    }
-  }
-});
 
 // Track remote avatars
 const remotes = {};

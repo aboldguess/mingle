@@ -6,8 +6,9 @@
   - Structure:
     1. Page styling and navigation bar
     2. On-screen usage instructions
-    3. A-Frame scene setup with assets, cameras and avatar
-    4. Client scripts for movement and navbar functionality
+    3. Camera control sidebar with real-time status
+    4. A-Frame scene setup with assets, cameras and avatar
+    5. Client scripts for movement and navbar functionality
   - Notes: A-Frame's default WASD controls are disabled on all cameras so that
     movement is handled exclusively by custom code in mingle_client.js.
 -->
@@ -72,6 +73,23 @@
       padding: 10px;
       z-index: 100;
     }
+    #sidebar {
+      position: fixed;
+      top: 60px;
+      right: 10px;
+      width: 220px;
+      background: rgba(255,255,255,0.9);
+      color: #000;
+      padding: 10px;
+      border: 1px solid #ccc;
+      z-index: 150;
+      font-size: 14px;
+    }
+    #status {
+      margin-top: 10px;
+      font-size: 12px;
+      color: #333;
+    }
   </style>
   <!--
     Load A-Frame and supporting libraries *before* the scene so that all
@@ -99,9 +117,21 @@
   </nav>
   <div id="instructions">
     <p>Use WASD to move and mouse to look. Click to lock pointer.</p>
-    <p>Press P to toggle spectate mode.</p>
+    <p>Use the sidebar to switch spectate mode, fix the camera and choose viewpoints (P also toggles spectate).</p>
     <p>Use the profile button in the top-right to access account options.</p>
   </div>
+
+  <aside id="sidebar">
+    <label><input type="checkbox" id="spectateToggle"> Spectate mode</label><br />
+    <label><input type="checkbox" id="fixCameraToggle"> Fix camera to avatar center</label>
+    <div>
+      <p>Viewpoint:</p>
+      <label><input type="radio" name="viewpoint" value="corner" checked> Corner</label><br />
+      <label><input type="radio" name="viewpoint" value="top"> Top-down</label><br />
+      <label><input type="radio" name="viewpoint" value="behind"> Behind</label>
+    </div>
+    <div id="status"></div>
+  </aside>
 
   <!-- Main A-Frame scene. Removing 'embedded' allows full-screen rendering -->
   <!-- Disable the default loading screen so the environment appears even if the
