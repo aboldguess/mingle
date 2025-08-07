@@ -26,7 +26,9 @@ const viewpointRadios = document.querySelectorAll('input[name="viewpoint"]');
 // Track which camera is currently feeding rotation data to the player.
 let activeCamera = playerCamera;
 
-// Ensure spectator camera never responds to built-in WASD controls.
+// Ensure spectator camera never responds to built-in WASD controls and pause its
+// look-controls until explicitly activated to avoid competing with the primary
+// camera.
 spectateCam.setAttribute('wasd-controls', 'enabled', false);
 const sceneEl = document.querySelector('a-scene');
 
@@ -47,6 +49,11 @@ function debugError(...args) {
 // stuck loading screens.
 sceneEl.addEventListener('loaded', () => {
   debugLog('A-Frame scene loaded');
+  // Only the first-person camera should process mouse movement initially.
+  // Pause the spectator camera's look-controls until spectate mode is enabled.
+  if (spectateCam.components['look-controls']) {
+    spectateCam.components['look-controls'].pause();
+  }
 });
 
 // Debug: log connection status
@@ -91,6 +98,14 @@ function applyViewpoint() {
 function setSpectateMode(enabled) {
   spectating = enabled;
   if (spectating) {
+    // Switch control to the spectator camera and ensure only it processes mouse
+    // movement.
+    if (playerCamera.components['look-controls']) {
+      playerCamera.components['look-controls'].pause();
+    }
+    if (spectateCam.components['look-controls']) {
+      spectateCam.components['look-controls'].play();
+    }
     playerCamera.setAttribute('camera', 'active', false);
     spectateCam.setAttribute('camera', 'active', true);
     spectateCam.setAttribute('visible', true);
@@ -100,6 +115,13 @@ function setSpectateMode(enabled) {
     applyViewpoint();
     debugLog('Spectate mode enabled');
   } else {
+    // Return control to the first-person camera.
+    if (spectateCam.components['look-controls']) {
+      spectateCam.components['look-controls'].pause();
+    }
+    if (playerCamera.components['look-controls']) {
+      playerCamera.components['look-controls'].play();
+    }
     spectateCam.setAttribute('camera', 'active', false);
     spectateCam.setAttribute('visible', false);
     playerCamera.setAttribute('camera', 'active', true);
@@ -169,9 +191,10 @@ function movementLoop(time) {
   const dt = (time - lastMove) / 1000;
   lastMove = time;
 
-  // Keep the player's rotation perfectly in sync with the active camera so the
-  // avatar pitches and yaws exactly with mouse movement in both modes.
-  player.object3D.rotation.copy(activeCamera.object3D.rotation);
+  // Mirror the active camera's rotation on the avatar so it visually matches the
+  // viewer's perspective without rotating the parent entity (avoids compounded
+  // axes in first-person mode).
+  avatar.object3D.rotation.copy(activeCamera.object3D.rotation);
 
   const dir = new THREE.Vector3();
   if (keys.w) dir.z -= 1;
@@ -228,12 +251,12 @@ navigator.mediaDevices.getUserMedia({ video: true, audio: false })
       '<p>Webcam unavailable. Check camera permissions.</p>';
   });
 
-// Send current position to server at regular intervals. The player's rotation is
-// driven by the camera's look-controls, so we copy that rotation onto the player
-// entity before broadcasting.
+// Send current position and viewing direction to the server. Using the active
+// camera's rotation avoids first-person axis issues and keeps the remote avatar
+// aligned with the local view.
 setInterval(() => {
   const position = player.getAttribute('position');
-  const rotation = player.getAttribute('rotation');
+  const rotation = activeCamera.getAttribute('rotation');
   socket.emit('position', { position, rotation });
 }, 100);
 

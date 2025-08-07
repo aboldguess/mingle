@@ -167,9 +167,11 @@
       </a-entity>
     </a-entity>
 
-    <!-- Spectator camera fixed at the top corner with a wide field of view to
-         encompass the entire scene. -->
-    <a-camera id="spectateCam" position="10 10 10" rotation="-35 -45 0" fov="80" visible="false" wasd-controls="enabled: false"></a-camera>
+    <!-- Spectator camera fixed at the top corner with its own look-controls so
+         mouse movement works independently of the first-person view. -->
+    <a-camera id="spectateCam" position="10 10 10" rotation="-35 -45 0" fov="80"
+              visible="false" wasd-controls="enabled: false"
+              look-controls="pointerLockEnabled: true"></a-camera>
   </a-scene>
 
   <!-- Client logic is loaded last once the DOM and libraries are ready -->
