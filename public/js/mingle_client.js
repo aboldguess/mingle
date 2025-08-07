@@ -6,7 +6,7 @@
  * - Structure:
  *   1. Socket and DOM initialisation
  *   2. Debug logging helpers
- *   3. Custom WASD movement handler
+ *   3. Custom WASD movement handler and active camera tracking
  *   4. Webcam capture and playback
  *   5. Periodic server synchronisation and spectate mode toggling
  *   6. Remote avatar tracking
@@ -18,6 +18,11 @@ const avatar = document.getElementById('avatar');
 const player = document.getElementById('player');
 const playerCamera = document.getElementById('playerCamera');
 const spectateCam = document.getElementById('spectateCam');
+// Track which camera is currently feeding rotation data to the player.
+let activeCamera = playerCamera;
+
+// Ensure spectator camera never responds to built-in WASD controls.
+spectateCam.setAttribute('wasd-controls', 'enabled', false);
 const sceneEl = document.querySelector('a-scene');
 
 // Simple helpers that only log when debug mode is enabled. The flag is
@@ -74,9 +79,9 @@ function movementLoop(time) {
   const dt = (time - lastMove) / 1000;
   lastMove = time;
 
-  // Keep the player's rotation perfectly in sync with the camera so the avatar
-  // pitches and yaws exactly with mouse movement.
-  player.object3D.rotation.copy(playerCamera.object3D.rotation);
+  // Keep the player's rotation perfectly in sync with the active camera so the
+  // avatar pitches and yaws exactly with mouse movement in both modes.
+  player.object3D.rotation.copy(activeCamera.object3D.rotation);
 
   const dir = new THREE.Vector3();
   if (keys.w) dir.z -= 1;
@@ -86,8 +91,8 @@ function movementLoop(time) {
 
   if (dir.lengthSq() > 0) {
     dir.normalize();
-    // Apply the player's current yaw so movement is relative to facing
-    const yaw = player.object3D.rotation.y;
+    // Apply the active camera's yaw so movement is relative to the view
+    const yaw = activeCamera.object3D.rotation.y;
     dir.applyEuler(new THREE.Euler(0, yaw, 0));
     player.object3D.position.addScaledVector(dir, MOVE_SPEED * dt);
   }
@@ -146,12 +151,15 @@ document.addEventListener('keydown', (e) => {
       playerCamera.setAttribute('camera', 'active', false);
       spectateCam.setAttribute('camera', 'active', true);
       spectateCam.setAttribute('visible', true);
+      spectateCam.setAttribute('wasd-controls', 'enabled', false);
+      activeCamera = spectateCam;
       avatar.setAttribute('visible', true); // show local avatar while spectating
       debugLog('Spectate mode enabled');
     } else {
       spectateCam.setAttribute('camera', 'active', false);
       spectateCam.setAttribute('visible', false);
       playerCamera.setAttribute('camera', 'active', true);
+      activeCamera = playerCamera;
       avatar.setAttribute('visible', false); // hide avatar for first-person view
       debugLog('Spectate mode disabled');
     }
