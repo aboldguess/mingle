@@ -56,9 +56,14 @@ function debugError(...args) {
 sceneEl.addEventListener('loaded', () => {
   debugLog('A-Frame scene loaded');
   // Only the first-person camera should process mouse movement. The spectator
-  // camera's look-controls stay paused permanently so it never rotates.
+  // camera's look-controls stay paused permanently so it never rotates. The
+  // first-person camera explicitly plays its look-controls so mouse movement
+  // continues to drive avatar orientation even when not the active view.
   if (spectateCam.components['look-controls']) {
     spectateCam.components['look-controls'].pause();
+  }
+  if (playerCamera.components['look-controls']) {
+    playerCamera.components['look-controls'].play();
   }
 });
 
@@ -104,6 +109,14 @@ function setSpectateMode(enabled) {
     activeCamera = spectateCam;
     avatar.setAttribute('visible', true); // show local avatar while spectating
     applyViewpoint();
+    // Ensure the spectator camera never reacts to mouse movement and keep the
+    // player camera responsive so the avatar can still rotate/tilt.
+    if (spectateCam.components['look-controls']) {
+      spectateCam.components['look-controls'].pause();
+    }
+    if (playerCamera.components['look-controls']) {
+      playerCamera.components['look-controls'].play();
+    }
     debugLog('Spectate mode enabled');
   } else {
     // Return control to the first-person camera.
@@ -113,6 +126,10 @@ function setSpectateMode(enabled) {
     playerCamera.setAttribute('camera', 'active', true);
     activeCamera = playerCamera;
     avatar.setAttribute('visible', false); // hide avatar for first-person view
+    // Defensive: keep spectator camera frozen if toggled again.
+    if (spectateCam.components['look-controls']) {
+      spectateCam.components['look-controls'].pause();
+    }
     debugLog('Spectate mode disabled');
   }
   spectateToggle.checked = spectating;
