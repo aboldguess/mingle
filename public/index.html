@@ -117,20 +117,21 @@
   </nav>
   <div id="instructions">
     <p>Use WASD to move and mouse to look. Click to lock pointer.</p>
-      <p>Use the sidebar to switch spectate mode and choose fixed viewpoints (P also toggles spectate).</p>
+    <p>Use the sidebar to switch spectate mode, fix the camera and choose viewpoints (P also toggles spectate).</p>
     <p>Use the profile button in the top-right to access account options.</p>
   </div>
 
-    <aside id="sidebar">
-      <label><input type="checkbox" id="spectateToggle"> Spectate mode</label>
-      <div>
-        <p>Viewpoint:</p>
-        <label><input type="radio" name="viewpoint" value="highCorner" checked> High corner</label><br />
-        <label><input type="radio" name="viewpoint" value="groundCorner"> Ground level corner</label><br />
-        <label><input type="radio" name="viewpoint" value="top"> Top dead center</label>
-      </div>
-      <div id="status"></div>
-    </aside>
+  <aside id="sidebar">
+    <label><input type="checkbox" id="spectateToggle"> Spectate mode</label><br />
+    <label><input type="checkbox" id="fixCameraToggle"> Fix camera to avatar center</label>
+    <div>
+      <p>Viewpoint:</p>
+      <label><input type="radio" name="viewpoint" value="corner" checked> Corner</label><br />
+      <label><input type="radio" name="viewpoint" value="top"> Top-down</label><br />
+      <label><input type="radio" name="viewpoint" value="behind"> Behind</label>
+    </div>
+    <div id="status"></div>
+  </aside>
 
   <!-- Main A-Frame scene. Removing 'embedded' allows full-screen rendering -->
   <!-- Disable the default loading screen so the environment appears even if the
@@ -154,26 +155,23 @@
          custom controller in mingle_client.js so we omit the built-in
          `wasd-controls`. The avatar starts hidden so it does not obstruct the
          first-person view but becomes visible in spectate mode. -->
-      <a-entity id="player" position="0 1.6 0">
-        <!-- The avatar consists of a front-facing plane that displays the webcam
-             feed and a rear backing plane so the video only appears on the face
-             pointing in the camera direction. The camera itself sits at the
-             origin, directly behind the avatar's front face. -->
-        <a-camera id="playerCamera" position="0 0 0" wasd-controls="enabled: false"></a-camera>
-        <a-entity id="avatar" position="0 0 0.05" visible="false">
-          <a-plane id="avatarFront" width="1" height="1" material="src:#localVideo" position="0 0 0.05"></a-plane>
-          <a-plane id="avatarBack" width="1" height="1" color="#FFFFFF" position="0 0 -0.05" rotation="0 180 0"></a-plane>
-        </a-entity>
+    <a-entity id="player" position="0 1.6 0">
+      <!-- The avatar consists of a front-facing plane that displays the webcam
+           feed and a rear backing plane so the video only appears on the face
+           pointing in the camera direction. The camera itself sits at the
+           origin, directly behind the avatar's front face. -->
+      <a-camera id="playerCamera" position="0 0 0" look-controls="pointerLockEnabled: true" wasd-controls="enabled: false"></a-camera>
+      <a-entity id="avatar" position="0 0 0.05" visible="false">
+        <a-plane id="avatarFront" width="1" height="1" material="src:#localVideo" position="0 0 0.05"></a-plane>
+        <a-plane id="avatarBack" width="1" height="1" color="#FFFFFF" position="0 0 -0.05" rotation="0 180 0"></a-plane>
       </a-entity>
+    </a-entity>
 
-      <!-- Spectator camera fixed to predefined world positions. Mouse movement
-           does not affect this camera; it only changes the avatar orientation. -->
-      <a-camera id="spectateCam" position="10 10 10" rotation="-35 -45 0" fov="80"
-                visible="false" wasd-controls="enabled: false"></a-camera>
-
-      <!-- Visual indicator showing the spectator camera location in the player's
-           unique colour. Hidden when not spectating. -->
-      <a-box id="spectateIndicator" width="0.5" height="0.5" depth="0.5" visible="false"></a-box>
+    <!-- Spectator camera fixed at the top corner with its own look-controls so
+         mouse movement works independently of the first-person view. -->
+    <a-camera id="spectateCam" position="10 10 10" rotation="-35 -45 0" fov="80"
+              visible="false" wasd-controls="enabled: false"
+              look-controls="pointerLockEnabled: true"></a-camera>
   </a-scene>
 
   <!-- Client logic is loaded last once the DOM and libraries are ready -->
