@@ -4,31 +4,37 @@
  * - Purpose: client-side logic for the Mingle prototype. Handles local avatar
  *   movement, webcam streaming, and position synchronisation with the server.
  * - Structure:
- *   1. Socket and DOM initialisation
+ *   1. Socket and DOM initialisation (including unique player colour)
  *   2. Debug logging helpers
- *   3. UI controls for spectating and camera viewpoints
+ *   3. UI controls for spectating and fixed camera viewpoints
  *   4. Custom WASD movement handler and real-time status
  *   5. Webcam capture and playback
  *   6. Periodic server synchronisation
- *   7. Remote avatar tracking
+ *   7. Remote avatar and spectate marker tracking
  */
 
 // Establish socket connection to the server and cache DOM references.
 const socket = io();
 const avatar = document.getElementById('avatar');
+const avatarBack = document.getElementById('avatarBack');
 const player = document.getElementById('player');
 const playerCamera = document.getElementById('playerCamera');
 const spectateCam = document.getElementById('spectateCam');
+const spectateMarker = document.getElementById('spectateMarker');
 const spectateToggle = document.getElementById('spectateToggle');
-const fixCameraToggle = document.getElementById('fixCameraToggle');
 const statusEl = document.getElementById('status');
 const viewpointRadios = document.querySelectorAll('input[name="viewpoint"]');
-// Track which camera is currently feeding rotation data to the player.
+// Track which camera is currently rendering the view for status display.
 let activeCamera = playerCamera;
 
+// Assign a unique colour to this player used for the avatar's back and the
+// spectate marker. This colour is shared with other clients via socket updates.
+const playerColor = '#' + Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, '0');
+avatarBack.setAttribute('color', playerColor);
+spectateMarker.setAttribute('color', playerColor);
+
 // Ensure spectator camera never responds to built-in WASD controls and pause its
-// look-controls until explicitly activated to avoid competing with the primary
-// camera.
+// look-controls so mouse movement never rotates it.
 spectateCam.setAttribute('wasd-controls', 'enabled', false);
 const sceneEl = document.querySelector('a-scene');
 
@@ -49,8 +55,8 @@ function debugError(...args) {
 // stuck loading screens.
 sceneEl.addEventListener('loaded', () => {
   debugLog('A-Frame scene loaded');
-  // Only the first-person camera should process mouse movement initially.
-  // Pause the spectator camera's look-controls until spectate mode is enabled.
+  // Only the first-person camera should process mouse movement. The spectator
+  // camera's look-controls stay paused permanently so it never rotates.
   if (spectateCam.components['look-controls']) {
     spectateCam.components['look-controls'].pause();
   }
@@ -63,67 +69,47 @@ socket.on('connect', () => debugLog('Connected to server', socket.id));
 // UI controls for spectating and camera viewpoints
 // ---------------------------------------------------------------------------
 const VIEWPOINTS = {
-  corner: {
+  high: {
     position: { x: 10, y: 10, z: 10 },
-    rotation: { x: -35, y: -45, z: 0 },
-    offset: new THREE.Vector3(5, 5, 5)
+    rotation: { x: -35, y: -45, z: 0 }
+  },
+  ground: {
+    position: { x: 10, y: 1.6, z: 10 },
+    rotation: { x: 0, y: -45, z: 0 }
   },
   top: {
     position: { x: 0, y: 20, z: 0 },
-    rotation: { x: -90, y: 0, z: 0 },
-    offset: new THREE.Vector3(0, 10, 0)
-  },
-  behind: {
-    position: { x: 0, y: 3, z: -10 },
-    rotation: { x: 0, y: 0, z: 0 },
-    offset: new THREE.Vector3(0, 2, -5)
+    rotation: { x: -90, y: 0, z: 0 }
   }
 };
-let currentView = 'corner';
-let followOffset = VIEWPOINTS[currentView].offset.clone();
+let currentView = 'high';
 let spectating = false;
 
 function applyViewpoint() {
   const vp = VIEWPOINTS[currentView];
-  if (fixCameraToggle.checked) {
-    followOffset.copy(vp.offset);
-    spectateCam.object3D.position.copy(player.object3D.position).add(followOffset);
-    spectateCam.object3D.lookAt(player.object3D.position);
-  } else {
-    spectateCam.setAttribute('position', vp.position);
-    spectateCam.setAttribute('rotation', vp.rotation);
-  }
+  spectateCam.setAttribute('position', vp.position);
+  spectateCam.setAttribute('rotation', vp.rotation);
+  spectateMarker.setAttribute('position', vp.position);
 }
 
 function setSpectateMode(enabled) {
   spectating = enabled;
   if (spectating) {
-    // Switch control to the spectator camera and ensure only it processes mouse
-    // movement.
-    if (playerCamera.components['look-controls']) {
-      playerCamera.components['look-controls'].pause();
-    }
-    if (spectateCam.components['look-controls']) {
-      spectateCam.components['look-controls'].play();
-    }
+    // Switch rendering to the spectator camera. Mouse movement continues to
+    // control the player camera which in turn drives avatar orientation.
     playerCamera.setAttribute('camera', 'active', false);
     spectateCam.setAttribute('camera', 'active', true);
     spectateCam.setAttribute('visible', true);
-    spectateCam.setAttribute('wasd-controls', 'enabled', false);
+    spectateMarker.setAttribute('visible', true);
     activeCamera = spectateCam;
     avatar.setAttribute('visible', true); // show local avatar while spectating
     applyViewpoint();
     debugLog('Spectate mode enabled');
   } else {
     // Return control to the first-person camera.
-    if (spectateCam.components['look-controls']) {
-      spectateCam.components['look-controls'].pause();
-    }
-    if (playerCamera.components['look-controls']) {
-      playerCamera.components['look-controls'].play();
-    }
     spectateCam.setAttribute('camera', 'active', false);
     spectateCam.setAttribute('visible', false);
+    spectateMarker.setAttribute('visible', false);
     playerCamera.setAttribute('camera', 'active', true);
     activeCamera = playerCamera;
     avatar.setAttribute('visible', false); // hide avatar for first-person view
@@ -139,7 +125,6 @@ function updateStatus() {
 }
 
 spectateToggle.addEventListener('change', () => setSpectateMode(spectateToggle.checked));
-fixCameraToggle.addEventListener('change', () => { applyViewpoint(); updateStatus(); });
 viewpointRadios.forEach(radio => {
   radio.addEventListener('change', () => {
     if (radio.checked) {
@@ -191,10 +176,10 @@ function movementLoop(time) {
   const dt = (time - lastMove) / 1000;
   lastMove = time;
 
-  // Mirror the active camera's rotation on the avatar so it visually matches the
+  // Mirror the player camera's rotation on the avatar so it visually matches the
   // viewer's perspective without rotating the parent entity (avoids compounded
   // axes in first-person mode).
-  avatar.object3D.rotation.copy(activeCamera.object3D.rotation);
+  avatar.object3D.rotation.copy(playerCamera.object3D.rotation);
 
   const dir = new THREE.Vector3();
   if (keys.w) dir.z -= 1;
@@ -204,15 +189,10 @@ function movementLoop(time) {
 
   if (dir.lengthSq() > 0) {
     dir.normalize();
-    // Apply the active camera's yaw so movement is relative to the view
-    const yaw = activeCamera.object3D.rotation.y;
+    // Apply the player camera's yaw so movement is relative to the view
+    const yaw = playerCamera.object3D.rotation.y;
     dir.applyEuler(new THREE.Euler(0, yaw, 0));
     player.object3D.position.addScaledVector(dir, MOVE_SPEED * dt);
-  }
-
-  if (spectating && fixCameraToggle.checked) {
-    spectateCam.object3D.position.copy(player.object3D.position).add(followOffset);
-    spectateCam.object3D.lookAt(player.object3D.position);
   }
 
   updateStatus();
@@ -251,36 +231,51 @@ navigator.mediaDevices.getUserMedia({ video: true, audio: false })
       '<p>Webcam unavailable. Check camera permissions.</p>';
   });
 
-// Send current position and viewing direction to the server. Using the active
-// camera's rotation avoids first-person axis issues and keeps the remote avatar
-// aligned with the local view.
+// Send current position, viewing direction and spectate camera location to the
+// server. The player camera's rotation represents avatar orientation.
 setInterval(() => {
   const position = player.getAttribute('position');
-  const rotation = activeCamera.getAttribute('rotation');
-  socket.emit('position', { position, rotation });
+  const rotation = playerCamera.getAttribute('rotation');
+  const spectatePos = spectating ? spectateCam.getAttribute('position') : null;
+  socket.emit('position', { position, rotation, color: playerColor, spectatePos });
 }, 100);
 
-// Track remote avatars
+// Track remote avatars and their spectate camera markers
 const remotes = {};
 socket.on('position', data => {
-  let box = remotes[data.id];
-  if (!box) {
-    box = document.createElement('a-box');
-    box.setAttribute('color', '#' + Math.floor(Math.random() * 16777215).toString(16));
-    box.setAttribute('width', 1);
-    box.setAttribute('height', 1);
-    box.setAttribute('depth', 0.1);
-    document.querySelector('a-scene').appendChild(box);
-    remotes[data.id] = box;
+  let remote = remotes[data.id];
+  if (!remote) {
+    const avatarBox = document.createElement('a-box');
+    avatarBox.setAttribute('color', data.color || '#888888');
+    avatarBox.setAttribute('width', 1);
+    avatarBox.setAttribute('height', 1);
+    avatarBox.setAttribute('depth', 0.1);
+    const camBox = document.createElement('a-box');
+    camBox.setAttribute('color', data.color || '#888888');
+    camBox.setAttribute('width', 0.5);
+    camBox.setAttribute('height', 0.5);
+    camBox.setAttribute('depth', 0.5);
+    camBox.setAttribute('visible', false);
+    sceneEl.appendChild(avatarBox);
+    sceneEl.appendChild(camBox);
+    remotes[data.id] = { avatar: avatarBox, cam: camBox };
+    remote = remotes[data.id];
   }
-  box.setAttribute('position', data.position);
-  box.setAttribute('rotation', data.rotation);
+  remote.avatar.setAttribute('position', data.position);
+  remote.avatar.setAttribute('rotation', data.rotation);
+  if (data.spectatePos) {
+    remote.cam.setAttribute('position', data.spectatePos);
+    remote.cam.setAttribute('visible', true);
+  } else {
+    remote.cam.setAttribute('visible', false);
+  }
 });
 
 socket.on('disconnectClient', id => {
-  const box = remotes[id];
-  if (box) {
-    box.parentNode.removeChild(box);
+  const remote = remotes[id];
+  if (remote) {
+    remote.avatar.parentNode.removeChild(remote.avatar);
+    remote.cam.parentNode.removeChild(remote.cam);
     delete remotes[id];
   }
 });
