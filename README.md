@@ -20,7 +20,7 @@ first-person avatar whose face displays a live webcam feed.
 ```bash
 ./setup_mingle_env.sh                # install dependencies
 ./create_mingle_cert.sh             # optional: create self-signed cert
-PORT=8080 npm start                 # run over HTTP
+HOST=0.0.0.0 PORT=8080 npm start     # run over HTTP and allow LAN clients
 # HTTPS example:
 # USE_HTTPS=true PORT=8443 npm start
 # Optional: add --debug for verbose console logging
@@ -31,8 +31,9 @@ PORT=8080 npm start                 # run over HTTP
 ```powershell
 ./setup_mingle_env.ps1               # install dependencies
 ./create_mingle_cert.ps1             # optional: create self-signed cert
+$env:HOST="0.0.0.0"
 $env:PORT=8080
-npm start                            # run over HTTP
+npm start                            # run over HTTP and allow LAN clients
 # HTTPS example:
 # $env:USE_HTTPS="true"
 # $env:PORT=8443
@@ -41,8 +42,9 @@ npm start                            # run over HTTP
 # npm start -- --debug
 ```
 
-Once running, open your browser at `http://localhost:8080` (or the port you
-specified). Mobile browsers require HTTPS to access device sensors; generate the
+Once running, the server logs every accessible address, e.g.
+`http://192.168.1.10:8080`. Open one of these URLs from any device on the same
+network. Mobile browsers require HTTPS to access device sensors; generate the
 self-signed certificate and start with `USE_HTTPS=true` to enable it.
 
 > The certificate scripts use OpenSSL. Install it beforehand if it is not already available.

@@ -1,13 +1,27 @@
+/**
+ * mingle_server.js
+ * Mini README:
+ * - Purpose: serve the Mingle client and synchronise avatars via Socket.io.
+ * - Structure:
+ *   1. Configuration flags (port, host, HTTPS, debug)
+ *   2. Server creation (HTTP/HTTPS)
+ *   3. Static routes and config endpoint
+ *   4. Socket.io events for position updates
+ *   5. Startup logging with LAN-friendly addresses
+ * - Notes: set HOST=0.0.0.0 to allow LAN clients. Use --debug for verbose logs.
+ */
 const express = require('express');
 const fs = require('fs');
 const http = require('http');
 const https = require('https');
 const path = require('path');
+const os = require('os');
 const { Server } = require('socket.io');
 
-// Simple Express server serving static files and Socket.io for real-time communication.
-// Port is configurable via PORT environment variable. Default is 3000.
+// Port and host are configurable via environment variables.
+// Default host 0.0.0.0 exposes the server on all network interfaces.
 const PORT = process.env.PORT || 3000;
+const HOST = process.env.HOST || '0.0.0.0';
 const PROD = process.env.PROD === 'true';
 // Enable HTTPS by setting USE_HTTPS=true and providing certificate paths
 const USE_HTTPS = process.env.USE_HTTPS === 'true';
@@ -73,9 +87,25 @@ io.on('connection', (socket) => {
   });
 });
 
-server.listen(PORT, () => {
+server.listen(PORT, HOST, () => {
   const protocol = USE_HTTPS ? 'https' : 'http';
-  console.log(`Mingle server running on ${protocol}://localhost:${PORT} in ${PROD ? 'production' : 'development'} mode`);
+  // Determine accessible addresses. When HOST is 0.0.0.0 we list all local
+  // IPv4 interfaces so users can easily connect over a LAN.
+  const addresses = [];
+  if (HOST === '0.0.0.0') {
+    const nets = os.networkInterfaces();
+    for (const name of Object.keys(nets)) {
+      for (const net of nets[name]) {
+        if (net.family === 'IPv4' && !net.internal) {
+          addresses.push(`${protocol}://${net.address}:${PORT}`);
+        }
+      }
+    }
+  } else {
+    addresses.push(`${protocol}://${HOST}:${PORT}`);
+  }
+  console.log(`Mingle server running in ${PROD ? 'production' : 'development'} mode`);
+  console.log('Accessible at:', addresses.join(', '));
   if (DEBUG) {
     console.log('Debug mode enabled');
   }
