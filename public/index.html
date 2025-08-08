@@ -7,7 +7,8 @@
     1. Page styling and navigation bar
     2. On-screen usage instructions
     3. Camera control sidebar with real-time status
-    4. A-Frame scene setup with assets, cameras and avatar (webcam only on front face)
+    4. A-Frame scene setup with assets, cameras, avatar and spectate marker
+       (webcam only on front face)
     5. Client scripts for movement and navbar functionality
   - Notes: A-Frame's default WASD controls are disabled on all cameras so that
     movement is handled exclusively by custom code in mingle_client.js.
@@ -117,18 +118,17 @@
   </nav>
   <div id="instructions">
     <p>Use WASD to move and mouse to look. Click to lock pointer.</p>
-    <p>Use the sidebar to switch spectate mode, fix the camera and choose viewpoints (P also toggles spectate).</p>
+    <p>Use the sidebar to switch spectate mode and choose fixed viewpoints (P also toggles spectate).</p>
     <p>Use the profile button in the top-right to access account options.</p>
   </div>
 
   <aside id="sidebar">
     <label><input type="checkbox" id="spectateToggle"> Spectate mode</label><br />
-    <label><input type="checkbox" id="fixCameraToggle"> Fix camera to avatar center</label>
     <div>
       <p>Viewpoint:</p>
-      <label><input type="radio" name="viewpoint" value="corner" checked> Corner</label><br />
-      <label><input type="radio" name="viewpoint" value="top"> Top-down</label><br />
-      <label><input type="radio" name="viewpoint" value="behind"> Behind</label>
+      <label><input type="radio" name="viewpoint" value="high" checked> High corner</label><br />
+      <label><input type="radio" name="viewpoint" value="ground"> Ground corner</label><br />
+      <label><input type="radio" name="viewpoint" value="top"> Top-down</label>
     </div>
     <div id="status"></div>
   </aside>
@@ -167,11 +167,13 @@
       </a-entity>
     </a-entity>
 
-    <!-- Spectator camera fixed at the top corner with its own look-controls so
-         mouse movement works independently of the first-person view. -->
+    <!-- Spectator camera that remains fixed at predefined viewpoints. Mouse
+         movement does not influence its orientation. A small marker indicates
+         its position when spectating. -->
     <a-camera id="spectateCam" position="10 10 10" rotation="-35 -45 0" fov="80"
               visible="false" wasd-controls="enabled: false"
               look-controls="pointerLockEnabled: true"></a-camera>
+    <a-box id="spectateMarker" width="0.5" height="0.5" depth="0.5" visible="false"></a-box>
   </a-scene>
 
   <!-- Client logic is loaded last once the DOM and libraries are ready -->
