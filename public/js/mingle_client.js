@@ -23,11 +23,8 @@ const spectateToggle = document.getElementById('spectateToggle');
 const fixCameraToggle = document.getElementById('fixCameraToggle');
 const statusEl = document.getElementById('status');
 const viewpointRadios = document.querySelectorAll('input[name="viewpoint"]');
-// `controlCamera` always captures mouse rotation to drive the avatar's
-// orientation. `viewCamera` is the camera used for rendering (toggled when
-// entering/exiting spectate mode).
-let controlCamera = playerCamera;
-let viewCamera = playerCamera;
+// Track which camera is currently feeding rotation data to the player.
+let activeCamera = playerCamera;
 
 // Ensure spectator camera never responds to built-in WASD controls and pause its
 // look-controls until explicitly activated to avoid competing with the primary
@@ -101,25 +98,24 @@ function applyViewpoint() {
 function setSpectateMode(enabled) {
   spectating = enabled;
   if (spectating) {
-    // Render from the spectator camera but continue using the player camera to
-    // capture mouse rotation. This keeps the avatar responsive while the
-    // viewpoint remains fixed in space.
-    if (spectateCam.components['look-controls']) {
-      spectateCam.components['look-controls'].pause();
-    }
+    // Switch control to the spectator camera and ensure only it processes mouse
+    // movement.
     if (playerCamera.components['look-controls']) {
-      playerCamera.components['look-controls'].play();
+      playerCamera.components['look-controls'].pause();
+    }
+    if (spectateCam.components['look-controls']) {
+      spectateCam.components['look-controls'].play();
     }
     playerCamera.setAttribute('camera', 'active', false);
     spectateCam.setAttribute('camera', 'active', true);
     spectateCam.setAttribute('visible', true);
-    viewCamera = spectateCam;
+    spectateCam.setAttribute('wasd-controls', 'enabled', false);
+    activeCamera = spectateCam;
     avatar.setAttribute('visible', true); // show local avatar while spectating
     applyViewpoint();
     debugLog('Spectate mode enabled');
   } else {
-    // Return the view to the first-person camera. Look-controls stay active so
-    // mouse rotation always drives the avatar.
+    // Return control to the first-person camera.
     if (spectateCam.components['look-controls']) {
       spectateCam.components['look-controls'].pause();
     }
@@ -129,7 +125,7 @@ function setSpectateMode(enabled) {
     spectateCam.setAttribute('camera', 'active', false);
     spectateCam.setAttribute('visible', false);
     playerCamera.setAttribute('camera', 'active', true);
-    viewCamera = playerCamera;
+    activeCamera = playerCamera;
     avatar.setAttribute('visible', false); // hide avatar for first-person view
     debugLog('Spectate mode disabled');
   }
@@ -138,7 +134,7 @@ function setSpectateMode(enabled) {
 }
 
 function updateStatus() {
-  const pos = viewCamera.object3D.position;
+  const pos = activeCamera.object3D.position;
   statusEl.textContent = `Mode: ${spectating ? 'Spectate' : 'First-person'} | Camera: ${pos.x.toFixed(2)}, ${pos.y.toFixed(2)}, ${pos.z.toFixed(2)}`;
 }
 
@@ -198,9 +194,7 @@ function movementLoop(time) {
   // Mirror the active camera's rotation on the avatar so it visually matches the
   // viewer's perspective without rotating the parent entity (avoids compounded
   // axes in first-person mode).
-  // Mirror the controlling camera's rotation on the avatar so it matches the
-  // user's view regardless of the render camera.
-  avatar.object3D.rotation.copy(controlCamera.object3D.rotation);
+  avatar.object3D.rotation.copy(activeCamera.object3D.rotation);
 
   const dir = new THREE.Vector3();
   if (keys.w) dir.z -= 1;
@@ -208,13 +202,13 @@ function movementLoop(time) {
   if (keys.a) dir.x -= 1;
   if (keys.d) dir.x += 1;
 
-    if (dir.lengthSq() > 0) {
-      dir.normalize();
-      // Apply the controlling camera's yaw so movement is relative to the view
-      const yaw = controlCamera.object3D.rotation.y;
-      dir.applyEuler(new THREE.Euler(0, yaw, 0));
-      player.object3D.position.addScaledVector(dir, MOVE_SPEED * dt);
-    }
+  if (dir.lengthSq() > 0) {
+    dir.normalize();
+    // Apply the active camera's yaw so movement is relative to the view
+    const yaw = activeCamera.object3D.rotation.y;
+    dir.applyEuler(new THREE.Euler(0, yaw, 0));
+    player.object3D.position.addScaledVector(dir, MOVE_SPEED * dt);
+  }
 
   if (spectating && fixCameraToggle.checked) {
     spectateCam.object3D.position.copy(player.object3D.position).add(followOffset);
@@ -262,9 +256,7 @@ navigator.mediaDevices.getUserMedia({ video: true, audio: false })
 // aligned with the local view.
 setInterval(() => {
   const position = player.getAttribute('position');
-  // Send the orientation derived from the control camera so other clients see
-  // the avatar's true facing direction when spectating.
-  const rotation = controlCamera.getAttribute('rotation');
+  const rotation = activeCamera.getAttribute('rotation');
   socket.emit('position', { position, rotation });
 }, 100);
 
