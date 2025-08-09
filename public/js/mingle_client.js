@@ -4,14 +4,13 @@
  * - Purpose: client-side logic for the Mingle prototype. Handles local avatar
  *   movement, webcam streaming, and position synchronisation with the server.
  * - Structure:
- *   1. Socket and DOM initialisation (including world menu and unique player colour)
- *   2. World selection menu handling
- *   3. Debug logging helpers
- *   4. UI controls for spectating and fixed camera viewpoints
- *   5. Custom WASD movement handler and real-time status
- *   6. Webcam capture and playback
- *   7. Periodic server synchronisation
- *   8. Remote avatar and spectate marker tracking (mirrors local avatar with
+ *   1. Socket and DOM initialisation (including unique player colour)
+ *   2. Debug logging helpers
+ *   3. UI controls for spectating and fixed camera viewpoints
+ *   4. Custom WASD movement handler and real-time status
+ *   5. Webcam capture and playback
+ *   6. Periodic server synchronisation
+ *   7. Remote avatar and spectate marker tracking (mirrors local avatar with
  *      placeholder video for other participants)
  */
 
@@ -26,29 +25,8 @@ const spectateMarker = document.getElementById('spectateMarker');
 const spectateToggle = document.getElementById('spectateToggle');
 const statusEl = document.getElementById('status');
 const viewpointRadios = document.querySelectorAll('input[name="viewpoint"]');
-const worldMenu = document.getElementById('worldMenu');
-const worldSelect = document.getElementById('worldSelect');
-const enterWorldBtn = document.getElementById('enterWorld');
 // Track which camera is currently rendering the view for status display.
 let activeCamera = playerCamera;
-
-// ---------------------------------------------------------------------------
-// World selection menu handling
-// ---------------------------------------------------------------------------
-const ALLOWED_WORLDS = ['lobby', 'auditorium', 'garden'];
-let currentWorld = null;
-enterWorldBtn.addEventListener('click', () => {
-  const chosen = worldSelect.value;
-  if (!ALLOWED_WORLDS.includes(chosen)) {
-    // Defensive check: ignore unexpected values.
-    debugError('Invalid world selected', chosen);
-    return;
-  }
-  currentWorld = chosen;
-  worldMenu.style.display = 'none';
-  debugLog('World selected:', currentWorld);
-  socket.emit('joinWorld', currentWorld);
-});
 
 // Assign a unique colour to this player used for the avatar's back and the
 // spectate marker. This colour is shared with other clients via socket updates.
