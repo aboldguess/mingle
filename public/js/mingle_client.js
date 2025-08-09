@@ -267,23 +267,42 @@ socket.on('position', data => {
 
   let remote = remotes[data.id];
   if (!remote) {
-    const avatarBox = document.createElement('a-box');
-    avatarBox.setAttribute('color', data.color || '#888888');
-    avatarBox.setAttribute('width', 1);
-    avatarBox.setAttribute('height', 1);
-    avatarBox.setAttribute('depth', 0.1);
+    // Create an entity that mirrors the structure of the local #avatar with
+    // a front-facing video plane and a white backing plane.
+    const avatarEntity = document.createElement('a-entity');
+
+    const front = document.createElement('a-plane');
+    front.setAttribute('width', 1);
+    front.setAttribute('height', 1);
+    front.setAttribute('position', '0 0 -0.05');
+    front.setAttribute('rotation', '0 180 0');
+    // Remote video streams are not yet implemented, so use a grey placeholder
+    // colour until a real texture can be applied.
+    front.setAttribute('color', '#888888');
+
+    const back = document.createElement('a-plane');
+    back.setAttribute('width', 1);
+    back.setAttribute('height', 1);
+    back.setAttribute('position', '0 0 0.05');
+    back.setAttribute('color', '#FFFFFF');
+
+    avatarEntity.appendChild(front);
+    avatarEntity.appendChild(back);
+
     const camBox = document.createElement('a-box');
     camBox.setAttribute('color', data.color || '#888888');
     camBox.setAttribute('width', 0.5);
     camBox.setAttribute('height', 0.5);
     camBox.setAttribute('depth', 0.5);
     camBox.setAttribute('visible', false);
-    sceneEl.appendChild(avatarBox);
+
+    sceneEl.appendChild(avatarEntity);
     sceneEl.appendChild(camBox);
-    remotes[data.id] = { avatar: avatarBox, cam: camBox };
+    remotes[data.id] = { avatar: avatarEntity, cam: camBox };
     remote = remotes[data.id];
     debugLog('Remote avatar created for', data.id);
   }
+
   remote.avatar.setAttribute('position', data.position);
   remote.avatar.setAttribute('rotation', data.rotation);
   if (data.spectatePos) {
