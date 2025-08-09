@@ -15,6 +15,9 @@ first-person avatar whose face displays a live webcam feed.
 - Verbose logs for easy debugging
 - Optional `--debug` flag to surface additional diagnostic information
 - Responsive navigation bar with profile menu linking to account management pages
+- Randomised spawn positions so newcomers are immediately visible
+- On-screen warning when not using HTTPS so webcams and sensors work over LAN
+- Live participant count displayed for quick diagnostics
 
 ## Quick Start
 
@@ -49,6 +52,17 @@ Once running, the server logs every accessible address, e.g.
 network. Mobile browsers require HTTPS to access device sensors; generate the
 self-signed certificate and start with `USE_HTTPS=true` to enable it.
 
+### HTTPS Requirement
+Most browsers block webcams, VR mode and motion sensors when a site is loaded
+over plain HTTP from a LAN address. If the page displays "Access this site over
+HTTPS to enter VR mode and grant access to the device sensors", create the
+self-signed certificate with `create_mingle_cert` and launch the server with
+`USE_HTTPS=true`.
+
+The client will display a warning banner whenever it detects an insecure
+context. Running the server with HTTPS resolves webcam and sensor issues and
+allows all participants to meet in the same world.
+
 > The certificate scripts use OpenSSL. Install it beforehand if it is not already available.
 
 ### Controls
@@ -61,6 +75,10 @@ If you see a blue screen with three loading dots, the webcam stream has not
 started. Confirm that the browser has permission to use the camera. Launching
 the server with the `--debug` flag provides console output that can help
 diagnose the problem.
+
+If other users are not visible, check the user count in the sidebar. A value of
+1 indicates that no other participants are connected. Ensure all users load the
+page via the same HTTPS address and that any firewalls allow the chosen port.
 
 ## Development Notes
 - Set `PROD=true` when starting the server to log production mode.
