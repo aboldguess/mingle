@@ -4,6 +4,7 @@ Mingle is an experimental 3D video meeting environment. Each attendee controls a
 first-person avatar whose face displays a live webcam feed.
 
 ## Features
+- Start menu offering FPV, Spectator and Lakitu viewing modes
 - WASD + mouse look movement with the camera pinned to the avatar centre
 - Toggleable spectate mode to view the scene from a fixed overhead camera
 - Webcam feed mapped onto the front face of the local avatar
@@ -50,8 +51,9 @@ self-signed certificate and start with `USE_HTTPS=true` to enable it.
 > The certificate scripts use OpenSSL. Install it beforehand if it is not already available.
 
 ### Controls
+- Choose FPV, Spectator or Lakitu from the start menu
 - `WASD` to move, mouse to look around
-- Press `P` to toggle spectate mode
+- Press `P` to toggle spectate mode (not available in Lakitu mode)
 
 ### Troubleshooting
 If you see a blue screen with three loading dots, the webcam stream has not
