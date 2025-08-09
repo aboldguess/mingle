@@ -4,13 +4,14 @@
   Mini README:
   - Purpose: renders the main 3D meeting interface and surrounding UI chrome.
   - Structure:
-    1. Page styling and navigation bar
-    2. On-screen usage instructions
-    3. Camera control sidebar with real-time status
-    4. A-Frame scene setup with assets, cameras, avatar and spectate marker
+    1. Initial world selection overlay
+    2. Page styling and navigation bar
+    3. On-screen usage instructions
+    4. Camera control sidebar with real-time status
+    5. A-Frame scene setup with assets, cameras, avatar and spectate marker
        (webcam only on front face; remote avatars mirror this layout with a
        placeholder colour until video streaming is available)
-    5. Client scripts for movement and navbar functionality
+    6. Client scripts for movement and navbar functionality
   - Notes: A-Frame's default WASD controls are disabled on all cameras so that
     movement is handled exclusively by custom code in mingle_client.js.
 -->
@@ -66,6 +67,26 @@
     }
     .dropdown li a:hover { background: #f0f0f0; }
     .dropdown.show { display: block; }
+    /* Full-screen overlay prompting the user to choose a world */
+    #worldMenu {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.8);
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 300;
+    }
+    #worldMenu select,
+    #worldMenu button {
+      margin-top: 10px;
+      padding: 8px;
+    }
     #instructions {
       position: absolute;
       top: 60px;
@@ -117,6 +138,15 @@
       </ul>
     </div>
   </nav>
+  <div id="worldMenu">
+    <h2>Select a world to enter</h2>
+    <select id="worldSelect">
+      <option value="lobby">Lobby</option>
+      <option value="auditorium">Auditorium</option>
+      <option value="garden">Garden</option>
+    </select>
+    <button id="enterWorld">Enter</button>
+  </div>
   <div id="instructions">
     <p>Use WASD to move and mouse to look. Click to lock pointer.</p>
     <p>Use the sidebar to switch spectate mode and choose fixed viewpoints (P also toggles spectate).</p>
