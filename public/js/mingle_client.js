@@ -4,10 +4,12 @@
  * - Purpose: client-side logic for the Mingle prototype. Handles local avatar
  *   movement, webcam streaming, and position synchronisation with the server.
  * - Structure:
- *   1. Socket and DOM initialisation (including unique player colour)
+ *   1. Socket and DOM initialisation (unique player colour, random spawn,
+ *      HTTPS warning)
  *   2. Debug logging helpers
  *   3. Start menu and UI controls for spectating and fixed camera viewpoints
- *   4. Custom WASD movement handler and real-time status
+ *   4. Custom WASD movement handler and real-time status including participant
+ *      count
  *   5. Webcam capture and playback
  *   6. Periodic server synchronisation
  *   7. Remote avatar and spectate marker tracking (mirrors local avatar with
@@ -29,6 +31,21 @@ const modeMenu = document.getElementById('modeMenu');
 const modeButtons = modeMenu ? modeMenu.querySelectorAll('button') : [];
 // Track which camera is currently rendering the view for status display.
 let activeCamera = playerCamera;
+// Track participant count for on-screen diagnostics.
+let connectedClients = 1;
+
+// Randomise the starting location slightly so newcomers do not overlap and
+// immediately appear to others in the shared world.
+const startPos = { x: Math.random() * 4 - 2, y: 1.6, z: Math.random() * 4 - 2 };
+player.setAttribute('position', startPos);
+
+// Warn the user if the page is not served over HTTPS which prevents webcam and
+// device sensor access on most browsers when using a LAN address.
+if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+  document.getElementById('instructions').innerHTML +=
+    '<p><strong>HTTPS required:</strong> Access this site over HTTPS to enable the webcam, VR mode and device sensors.</p>';
+  debugLog('Insecure context detected; camera and sensors disabled until HTTPS is used.');
+}
 
 // Enumerate the entry modes selectable via the start menu.
 const MODE_FPV = 'FPV';
@@ -80,7 +97,21 @@ sceneEl.addEventListener('loaded', () => {
 });
 
 // Debug: log connection status
-socket.on('connect', () => debugLog('Connected to server', socket.id));
+socket.on('connect', () => {
+  debugLog('Connected to server', socket.id);
+  document.getElementById('instructions').innerHTML += '<p>Connected to server.</p>';
+});
+socket.on('connect_error', (err) => {
+  document.getElementById('instructions').innerHTML += '<p>Cannot reach server.</p>';
+  debugError('Socket connection error', err);
+});
+
+// Receive participant count updates from the server so users know if others are
+// present in the shared world.
+socket.on('clientCount', (count) => {
+  connectedClients = count;
+  updateStatus();
+});
 
 // ---------------------------------------------------------------------------
 // UI controls for spectating and camera viewpoints
@@ -176,11 +207,11 @@ function selectMode(mode) {
 
 function updateStatus() {
   if (!currentMode) {
-    statusEl.textContent = 'Mode: (select)';
+    statusEl.textContent = `Mode: (select) | Users: ${connectedClients}`;
     return;
   }
   const pos = activeCamera.object3D.position;
-  statusEl.textContent = `Mode: ${currentMode} | Camera: ${pos.x.toFixed(2)}, ${pos.y.toFixed(2)}, ${pos.z.toFixed(2)}`;
+  statusEl.textContent = `Mode: ${currentMode} | Camera: ${pos.x.toFixed(2)}, ${pos.y.toFixed(2)}, ${pos.z.toFixed(2)} | Users: ${connectedClients}`;
 }
 
 spectateToggle.addEventListener('change', () => {

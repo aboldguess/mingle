@@ -6,8 +6,8 @@
  *   1. Configuration flags (port, host, HTTPS, debug)
  *   2. Server creation (HTTP/HTTPS)
  *   3. Static routes and config endpoint
- *   4. Socket.io events for position updates
- *   5. Startup logging with LAN-friendly addresses
+ *   4. Socket.io events for position and participant count updates
+ *   5. Startup logging with LAN-friendly addresses and HTTP/HTTPS guidance
  * - Notes: set LISTEN_HOST=0.0.0.0 to allow LAN clients. Use --debug for verbose logs.
  */
 const express = require('express');
@@ -71,6 +71,7 @@ io.on('connection', (socket) => {
   // Always log client connections. Additional details are logged when in
   // debug mode to aid troubleshooting networking issues.
   console.log(`Client connected: ${socket.id}`);
+  io.emit('clientCount', io.engine.clientsCount);
 
   // Forward position data to all clients
   socket.on('position', (data) => {
@@ -88,6 +89,7 @@ io.on('connection', (socket) => {
     // further context if needed.
     console.log(`Client disconnected: ${socket.id}`);
     socket.broadcast.emit('disconnectClient', socket.id);
+    io.emit('clientCount', io.engine.clientsCount);
   });
 });
 
@@ -115,5 +117,7 @@ server.listen(PORT, HOST, () => {
   }
   if (USE_HTTPS) {
     console.log('HTTPS enabled. Certificates loaded from:', KEY_PATH, CERT_PATH);
+  } else {
+    console.warn('HTTP mode: remote browsers may block webcams and sensors. Start with USE_HTTPS=true for full functionality.');
   }
 });
