@@ -6,7 +6,7 @@
  * - Structure:
  *   1. Socket and DOM initialisation (including unique player colour)
  *   2. Debug logging helpers
- *   3. UI controls for spectating and fixed camera viewpoints
+ *   3. Start menu and UI controls for spectating and fixed camera viewpoints
  *   4. Custom WASD movement handler and real-time status
  *   5. Webcam capture and playback
  *   6. Periodic server synchronisation
@@ -25,14 +25,25 @@ const spectateMarker = document.getElementById('spectateMarker');
 const spectateToggle = document.getElementById('spectateToggle');
 const statusEl = document.getElementById('status');
 const viewpointRadios = document.querySelectorAll('input[name="viewpoint"]');
+const modeMenu = document.getElementById('modeMenu');
+const modeButtons = modeMenu ? modeMenu.querySelectorAll('button') : [];
 // Track which camera is currently rendering the view for status display.
 let activeCamera = playerCamera;
+
+// Enumerate the entry modes selectable via the start menu.
+const MODE_FPV = 'FPV';
+const MODE_SPECTATOR = 'Spectator';
+const MODE_LAKITU = 'Lakitu';
+let currentMode = null; // populated once the user chooses how to enter
 
 // Assign a unique colour to this player used for the avatar's back and the
 // spectate marker. This colour is shared with other clients via socket updates.
 const playerColor = '#' + Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, '0');
 avatarBack.setAttribute('color', playerColor);
 spectateMarker.setAttribute('color', playerColor);
+
+// When the user picks a mode from the start menu, configure the scene.
+modeButtons.forEach(btn => btn.addEventListener('click', () => selectMode(btn.dataset.mode)));
 
 // Ensure spectator camera never responds to built-in WASD controls and pause its
 // look-controls so mouse movement never rotates it.
@@ -137,12 +148,50 @@ function setSpectateMode(enabled) {
   updateStatus();
 }
 
-function updateStatus() {
-  const pos = activeCamera.object3D.position;
-  statusEl.textContent = `Mode: ${spectating ? 'Spectate' : 'First-person'} | Camera: ${pos.x.toFixed(2)}, ${pos.y.toFixed(2)}, ${pos.z.toFixed(2)}`;
+// Entry point after the user selects how they wish to view the world.
+function selectMode(mode) {
+  currentMode = mode === 'fpv' ? MODE_FPV : mode === 'spectator' ? MODE_SPECTATOR : MODE_LAKITU;
+  modeMenu.classList.add('hidden');
+  debugLog('Mode selected', currentMode);
+
+  // Reset player and camera positions to the centre of the world for a fresh start.
+  player.setAttribute('position', { x: 0, y: 1.6, z: 0 });
+  playerCamera.setAttribute('position', { x: 0, y: 0, z: 0 });
+
+  if (currentMode === MODE_SPECTATOR) {
+    setSpectateMode(true);
+    spectateCam.setAttribute('position', VIEWPOINTS.high.position);
+    spectateMarker.setAttribute('visible', false);
+  } else if (currentMode === MODE_LAKITU) {
+    setSpectateMode(false);
+    avatar.setAttribute('visible', true);
+    playerCamera.setAttribute('position', { x: 0, y: 0, z: 3 });
+    // Point the camera at the avatar to start.
+    playerCamera.object3D.lookAt(player.object3D.position);
+  } else {
+    setSpectateMode(false);
+  }
+  updateStatus();
 }
 
-spectateToggle.addEventListener('change', () => setSpectateMode(spectateToggle.checked));
+function updateStatus() {
+  if (!currentMode) {
+    statusEl.textContent = 'Mode: (select)';
+    return;
+  }
+  const pos = activeCamera.object3D.position;
+  statusEl.textContent = `Mode: ${currentMode} | Camera: ${pos.x.toFixed(2)}, ${pos.y.toFixed(2)}, ${pos.z.toFixed(2)}`;
+}
+
+spectateToggle.addEventListener('change', () => {
+  if (currentMode === MODE_LAKITU) {
+    spectateToggle.checked = false; // spectating disabled in Lakitu mode
+    return;
+  }
+  setSpectateMode(spectateToggle.checked);
+  currentMode = spectating ? MODE_SPECTATOR : MODE_FPV;
+  updateStatus();
+});
 viewpointRadios.forEach(radio => {
   radio.addEventListener('change', () => {
     if (radio.checked) {
@@ -156,8 +205,10 @@ viewpointRadios.forEach(radio => {
 
 // Keyboard shortcut mirrors the checkbox for convenience
 document.addEventListener('keydown', (e) => {
-  if (e.key.toLowerCase() === 'p') {
+  if (e.key.toLowerCase() === 'p' && currentMode !== MODE_LAKITU) {
     setSpectateMode(!spectating);
+    currentMode = spectating ? MODE_SPECTATOR : MODE_FPV;
+    updateStatus();
   }
 });
 updateStatus();
@@ -194,10 +245,17 @@ function movementLoop(time) {
   const dt = (time - lastMove) / 1000;
   lastMove = time;
 
+  // Do nothing until the user has selected a mode.
+  if (!currentMode) {
+    requestAnimationFrame(movementLoop);
+    return;
+  }
+
   // Mirror the player camera's rotation on the avatar so it visually matches the
-  // viewer's perspective without rotating the parent entity (avoids compounded
-  // axes in first-person mode).
-  avatar.object3D.rotation.copy(playerCamera.object3D.rotation);
+  // viewer's perspective. In Lakitu mode the avatar remains fixed and unrotated.
+  if (currentMode !== MODE_LAKITU) {
+    avatar.object3D.rotation.copy(playerCamera.object3D.rotation);
+  }
 
   const dir = new THREE.Vector3();
   if (keys.w) dir.z -= 1;
@@ -210,7 +268,16 @@ function movementLoop(time) {
     // Apply the player camera's yaw so movement is relative to the view
     const yaw = playerCamera.object3D.rotation.y;
     dir.applyEuler(new THREE.Euler(0, yaw, 0));
-    player.object3D.position.addScaledVector(dir, MOVE_SPEED * dt);
+    if (currentMode === MODE_LAKITU) {
+      playerCamera.object3D.position.addScaledVector(dir, MOVE_SPEED * dt);
+    } else {
+      player.object3D.position.addScaledVector(dir, MOVE_SPEED * dt);
+    }
+  }
+
+  if (currentMode === MODE_SPECTATOR) {
+    // Keep the spectator camera aimed at the avatar.
+    spectateCam.object3D.lookAt(player.object3D.position);
   }
 
   updateStatus();
@@ -254,7 +321,7 @@ navigator.mediaDevices.getUserMedia({ video: true, audio: false })
 setInterval(() => {
   const position = player.getAttribute('position');
   const rotation = playerCamera.getAttribute('rotation');
-  const spectatePos = spectating ? spectateCam.getAttribute('position') : null;
+  const spectatePos = currentMode === MODE_SPECTATOR ? spectateCam.getAttribute('position') : null;
   socket.emit('position', { position, rotation, color: playerColor, spectatePos });
 }, 100);
 
