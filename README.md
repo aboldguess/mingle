@@ -63,7 +63,7 @@ The client will display a warning banner whenever it detects an insecure
 context. Running the server with HTTPS resolves webcam and sensor issues and
 allows all participants to meet in the same world.
 
-> The certificate scripts use OpenSSL. Install it beforehand if it is not already available.
+ > The Linux certificate script requires OpenSSL. The PowerShell variant uses Windows’ built-in cryptography and needs no additional tools.
 
 ### Controls
 - Choose FPV, Spectator or Lakitu from the start menu
