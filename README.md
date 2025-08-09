@@ -10,6 +10,7 @@ first-person avatar whose face displays a live webcam feed.
 - Webcam feed mapped onto the front face of the local avatar
 - Basic multi-user position synchronisation via Socket.io
 - Configurable port via `PORT` environment variable
+- Configurable host via `LISTEN_HOST` environment variable
 - Optional HTTPS support for secure contexts (`USE_HTTPS=true`)
 - Verbose logs for easy debugging
 - Optional `--debug` flag to surface additional diagnostic information
@@ -21,7 +22,7 @@ first-person avatar whose face displays a live webcam feed.
 ```bash
 ./setup_mingle_env.sh                # install dependencies
 ./create_mingle_cert.sh             # optional: create self-signed cert
-HOST=0.0.0.0 PORT=8080 npm start     # run over HTTP and allow LAN clients
+LISTEN_HOST=0.0.0.0 PORT=8080 npm start  # run over HTTP and allow LAN clients
 # HTTPS example:
 # USE_HTTPS=true PORT=8443 npm start
 # Optional: add --debug for verbose console logging
@@ -32,7 +33,7 @@ HOST=0.0.0.0 PORT=8080 npm start     # run over HTTP and allow LAN clients
 ```powershell
 ./setup_mingle_env.ps1               # install dependencies
 ./create_mingle_cert.ps1             # optional: create self-signed cert
-$env:HOST="0.0.0.0"
+$env:LISTEN_HOST="0.0.0.0"
 $env:PORT=8080
 npm start                            # run over HTTP and allow LAN clients
 # HTTPS example:
