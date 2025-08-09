@@ -6,7 +6,7 @@
  *   1. Configuration flags (port, host, HTTPS, debug)
  *   2. Server creation (HTTP/HTTPS)
  *   3. Static routes and config endpoint
- *   4. Socket.io events for position updates and world selection
+ *   4. Socket.io events for position updates
  *   5. Startup logging with LAN-friendly addresses
  * - Notes: set HOST=0.0.0.0 to allow LAN clients. Use --debug for verbose logs.
  */
@@ -69,17 +69,6 @@ io.on('connection', (socket) => {
   // Always log client connections. Additional details are logged when in
   // debug mode to aid troubleshooting networking issues.
   console.log(`Client connected: ${socket.id}`);
-
-  // Record which world the client wishes to join.
-  socket.on('joinWorld', (world) => {
-    if (typeof world !== 'string') {
-      return; // Ignore malformed input.
-    }
-    socket.world = world;
-    if (DEBUG) {
-      console.log(`Client ${socket.id} joined world ${world}`);
-    }
-  });
 
   // Forward position data to all clients
   socket.on('position', (data) => {
