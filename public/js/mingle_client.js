@@ -10,7 +10,8 @@
  *   4. Custom WASD movement handler and real-time status
  *   5. Webcam capture and playback
  *   6. Periodic server synchronisation
- *   7. Remote avatar and spectate marker tracking
+ *   7. Remote avatar and spectate marker tracking (mirrors local avatar with
+ *      placeholder video for other participants)
  */
 
 // Establish socket connection to the server and cache DOM references.
@@ -257,28 +258,28 @@ setInterval(() => {
   socket.emit('position', { position, rotation, color: playerColor, spectatePos });
 }, 100);
 
-// Track remote avatars and their spectate camera markers
+// Track remote avatars and their spectate camera markers. Each entry mirrors a
+// participant in the scene so everyone sees all other users.
 const remotes = {};
 socket.on('position', data => {
-  // The server now echoes position updates to every client, including the
-  // sender. Ignore messages originating from this client so we only render
-  // avatars for other participants.
+  // The server echoes position updates to every client, including the sender.
+  // Skip our own entry so only other participants generate remote avatars.
   if (data.id === socket.id) { return; }
 
   let remote = remotes[data.id];
   if (!remote) {
-    // Create an entity that mirrors the structure of the local #avatar with
-    // a front-facing video plane and a white backing plane.
+    // Remote avatars replicate the local #avatar: a forward-facing plane that
+    // would display the participant's video stream and a white backing plane
+    // so the texture only appears on the front. Video streaming for remotes is
+    // not yet wired up, so we use a grey placeholder colour instead.
     const avatarEntity = document.createElement('a-entity');
 
     const front = document.createElement('a-plane');
     front.setAttribute('width', 1);
     front.setAttribute('height', 1);
     front.setAttribute('position', '0 0 -0.05');
-    front.setAttribute('rotation', '0 180 0');
-    // Remote video streams are not yet implemented, so use a grey placeholder
-    // colour until a real texture can be applied.
-    front.setAttribute('color', '#888888');
+    front.setAttribute('rotation', '0 180 0'); // face the same direction as the avatar
+    front.setAttribute('color', '#888888'); // placeholder until remote video is streamed
 
     const back = document.createElement('a-plane');
     back.setAttribute('width', 1);
