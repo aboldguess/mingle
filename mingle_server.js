@@ -8,7 +8,7 @@
  *   3. Static routes and config endpoint
  *   4. Socket.io events for position updates
  *   5. Startup logging with LAN-friendly addresses
- * - Notes: set HOST=0.0.0.0 to allow LAN clients. Use --debug for verbose logs.
+ * - Notes: set LISTEN_HOST=0.0.0.0 to allow LAN clients. Use --debug for verbose logs.
  */
 const express = require('express');
 const fs = require('fs');
@@ -18,10 +18,12 @@ const path = require('path');
 const os = require('os');
 const { Server } = require('socket.io');
 
-// Port and host are configurable via environment variables.
+// Port and host are configurable via environment variables. LISTEN_HOST is used
+// rather than HOST to avoid clashing with shells that define HOST by default
+// (which can inadvertently bind the server to an unreachable address).
 // Default host 0.0.0.0 exposes the server on all network interfaces.
 const PORT = process.env.PORT || 3000;
-const HOST = process.env.HOST || '0.0.0.0';
+const HOST = process.env.LISTEN_HOST || '0.0.0.0';
 const PROD = process.env.PROD === 'true';
 // Enable HTTPS by setting USE_HTTPS=true and providing certificate paths
 const USE_HTTPS = process.env.USE_HTTPS === 'true';
