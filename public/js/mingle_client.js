@@ -260,6 +260,11 @@ setInterval(() => {
 // Track remote avatars and their spectate camera markers
 const remotes = {};
 socket.on('position', data => {
+  // The server now echoes position updates to every client, including the
+  // sender. Ignore messages originating from this client so we only render
+  // avatars for other participants.
+  if (data.id === socket.id) { return; }
+
   let remote = remotes[data.id];
   if (!remote) {
     const avatarBox = document.createElement('a-box');
@@ -277,6 +282,7 @@ socket.on('position', data => {
     sceneEl.appendChild(camBox);
     remotes[data.id] = { avatar: avatarBox, cam: camBox };
     remote = remotes[data.id];
+    debugLog('Remote avatar created for', data.id);
   }
   remote.avatar.setAttribute('position', data.position);
   remote.avatar.setAttribute('rotation', data.rotation);

@@ -161,9 +161,13 @@
            pointing in the camera direction. The camera itself sits at the
            origin, directly behind the avatar's front face. -->
       <a-camera id="playerCamera" position="0 0 0" look-controls="pointerLockEnabled: true" wasd-controls="enabled: false"></a-camera>
-      <a-entity id="avatar" position="0 0 0.05" visible="false">
-        <a-plane id="avatarFront" width="1" height="1" material="src:#localVideo" position="0 0 0.05"></a-plane>
-        <a-plane id="avatarBack" width="1" height="1" color="#FFFFFF" position="0 0 -0.05" rotation="0 180 0"></a-plane>
+      <!-- Position the avatar directly in front of the player camera. The video
+           plane is rotated to face the same direction as the player so remote
+           viewers see the webcam on the front of the avatar rather than the
+           back. -->
+      <a-entity id="avatar" position="0 0 0" visible="false">
+        <a-plane id="avatarFront" width="1" height="1" material="src:#localVideo" position="0 0 -0.05" rotation="0 180 0"></a-plane>
+        <a-plane id="avatarBack" width="1" height="1" color="#FFFFFF" position="0 0 0.05"></a-plane>
       </a-entity>
     </a-entity>
 
