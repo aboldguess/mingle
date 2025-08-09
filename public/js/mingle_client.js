@@ -10,7 +10,8 @@
  *   4. Custom WASD movement handler and real-time status
  *   5. Webcam capture and playback
  *   6. Periodic server synchronisation
- *   7. Remote avatar and spectate marker tracking
+ *   7. Remote avatar and spectate marker tracking (mirrors local avatar with
+ *      placeholder video for other participants)
  */
 
 // Establish socket connection to the server and cache DOM references.
@@ -257,27 +258,52 @@ setInterval(() => {
   socket.emit('position', { position, rotation, color: playerColor, spectatePos });
 }, 100);
 
-// Track remote avatars and their spectate camera markers
+// Track remote avatars and their spectate camera markers. Each entry mirrors a
+// participant in the scene so everyone sees all other users.
 const remotes = {};
 socket.on('position', data => {
+  // The server echoes position updates to every client, including the sender.
+  // Skip our own entry so only other participants generate remote avatars.
+  if (data.id === socket.id) { return; }
+
   let remote = remotes[data.id];
   if (!remote) {
-    const avatarBox = document.createElement('a-box');
-    avatarBox.setAttribute('color', data.color || '#888888');
-    avatarBox.setAttribute('width', 1);
-    avatarBox.setAttribute('height', 1);
-    avatarBox.setAttribute('depth', 0.1);
+    // Remote avatars replicate the local #avatar: a forward-facing plane that
+    // would display the participant's video stream and a white backing plane
+    // so the texture only appears on the front. Video streaming for remotes is
+    // not yet wired up, so we use a grey placeholder colour instead.
+    const avatarEntity = document.createElement('a-entity');
+
+    const front = document.createElement('a-plane');
+    front.setAttribute('width', 1);
+    front.setAttribute('height', 1);
+    front.setAttribute('position', '0 0 -0.05');
+    front.setAttribute('rotation', '0 180 0'); // face the same direction as the avatar
+    front.setAttribute('color', '#888888'); // placeholder until remote video is streamed
+
+    const back = document.createElement('a-plane');
+    back.setAttribute('width', 1);
+    back.setAttribute('height', 1);
+    back.setAttribute('position', '0 0 0.05');
+    back.setAttribute('color', '#FFFFFF');
+
+    avatarEntity.appendChild(front);
+    avatarEntity.appendChild(back);
+
     const camBox = document.createElement('a-box');
     camBox.setAttribute('color', data.color || '#888888');
     camBox.setAttribute('width', 0.5);
     camBox.setAttribute('height', 0.5);
     camBox.setAttribute('depth', 0.5);
     camBox.setAttribute('visible', false);
-    sceneEl.appendChild(avatarBox);
+
+    sceneEl.appendChild(avatarEntity);
     sceneEl.appendChild(camBox);
-    remotes[data.id] = { avatar: avatarBox, cam: camBox };
+    remotes[data.id] = { avatar: avatarEntity, cam: camBox };
     remote = remotes[data.id];
+    debugLog('Remote avatar created for', data.id);
   }
+
   remote.avatar.setAttribute('position', data.position);
   remote.avatar.setAttribute('rotation', data.rotation);
   if (data.spectatePos) {

@@ -72,8 +72,10 @@ io.on('connection', (socket) => {
 
   // Forward position data to all clients
   socket.on('position', (data) => {
-    // Echo the data to other clients to keep avatars in sync.
-    socket.broadcast.emit('position', { id: socket.id, ...data });
+    // Echo the data to every client, including the sender. Clients ignore
+    // updates from themselves, ensuring that all connected participants are
+    // aware of each other's avatars even if they connect later.
+    io.emit('position', { id: socket.id, ...data });
     if (DEBUG) {
       console.log(`Position from ${socket.id}:`, data);
     }

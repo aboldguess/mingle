@@ -8,7 +8,8 @@
     2. On-screen usage instructions
     3. Camera control sidebar with real-time status
     4. A-Frame scene setup with assets, cameras, avatar and spectate marker
-       (webcam only on front face)
+       (webcam only on front face; remote avatars mirror this layout with a
+       placeholder colour until video streaming is available)
     5. Client scripts for movement and navbar functionality
   - Notes: A-Frame's default WASD controls are disabled on all cameras so that
     movement is handled exclusively by custom code in mingle_client.js.
@@ -158,12 +159,18 @@
     <a-entity id="player" position="0 1.6 0">
       <!-- The avatar consists of a front-facing plane that displays the webcam
            feed and a rear backing plane so the video only appears on the face
-           pointing in the camera direction. The camera itself sits at the
-           origin, directly behind the avatar's front face. -->
+           pointing in the camera direction. Remote participants are rendered
+           on every client by duplicating this front/back layout; their video
+           plane currently uses a placeholder colour until streaming is wired
+           up. The camera itself sits at the origin, directly behind the avatar's
+           front face. -->
       <a-camera id="playerCamera" position="0 0 0" look-controls="pointerLockEnabled: true" wasd-controls="enabled: false"></a-camera>
-      <a-entity id="avatar" position="0 0 0.05" visible="false">
-        <a-plane id="avatarFront" width="1" height="1" material="src:#localVideo" position="0 0 0.05"></a-plane>
-        <a-plane id="avatarBack" width="1" height="1" color="#FFFFFF" position="0 0 -0.05" rotation="0 180 0"></a-plane>
+      <!-- Position the avatar directly in front of the player camera. The video
+           plane is rotated to face the same direction as the player so all
+           clients view the webcam on the avatar's front rather than the back. -->
+      <a-entity id="avatar" position="0 0 0" visible="false">
+        <a-plane id="avatarFront" width="1" height="1" material="src:#localVideo" position="0 0 -0.05" rotation="0 180 0"></a-plane>
+        <a-plane id="avatarBack" width="1" height="1" color="#FFFFFF" position="0 0 0.05"></a-plane>
       </a-entity>
     </a-entity>
 
