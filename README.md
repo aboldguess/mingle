@@ -88,6 +88,24 @@ If `create_mingle_cert.ps1` reports that `GetRSAPrivateKey` is missing, the
 script is running under Windows PowerShell 5.1. Launch it from a PowerShell 7
 (`pwsh`) session or use the `create_mingle_cert.sh` script under WSL.
 
+## Docker Deployment
+
+### Linux / Raspberry Pi
+```bash
+docker build -t mingle-server .
+docker run -p 8080:8080 mingle-server
+```
+
+### Windows (PowerShell)
+```powershell
+docker build -t mingle-server .
+docker run -p 8080:8080 mingle-server
+```
+
+The container uses the `PORT` environment variable to determine which internal
+port to expose. Adjust the `-p` mapping to match any custom value. The server is
+started in production mode and logs the accessible URLs on launch.
+
 ## Development Notes
 - Set `PROD=true` when starting the server to log production mode.
 - Server and client log connection and debugging information to the terminal

@@ -1,0 +1,19 @@
+// tsconfig.json
+// Mini README:
+// - Purpose: configure TypeScript compiler for the Mingle server.
+// - Structure:
+//   * Compiler options target modern Node and output to the dist directory.
+//   * Include the src directory where TypeScript source files live.
+{
+  "compilerOptions": {
+    "target": "es2020",
+    "module": "commonjs",
+    "rootDir": "src",
+    "outDir": "dist",
+    "strict": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*"]
+}
