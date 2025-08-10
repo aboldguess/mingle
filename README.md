@@ -33,6 +33,10 @@ LISTEN_HOST=0.0.0.0 PORT=8080 npm start  # run over HTTP and allow LAN clients
 ```
 
 ### Windows (PowerShell)
+> `create_mingle_cert.ps1` requires PowerShell 7+. Launch these commands from a
+> `pwsh` session. Install PowerShell 7 with `winget install Microsoft.PowerShell`
+> or download it from the Microsoft Store. If PowerShell 7 is unavailable,
+> run the `create_mingle_cert.sh` script under WSL instead.
 ```powershell
 ./setup_mingle_env.ps1               # install dependencies
 ./create_mingle_cert.ps1             # optional: create self-signed cert
@@ -79,6 +83,10 @@ diagnose the problem.
 If other users are not visible, check the user count in the sidebar. A value of
 1 indicates that no other participants are connected. Ensure all users load the
 page via the same HTTPS address and that any firewalls allow the chosen port.
+
+If `create_mingle_cert.ps1` reports that `GetRSAPrivateKey` is missing, the
+script is running under Windows PowerShell 5.1. Launch it from a PowerShell 7
+(`pwsh`) session or use the `create_mingle_cert.sh` script under WSL.
 
 ## Development Notes
 - Set `PROD=true` when starting the server to log production mode.
