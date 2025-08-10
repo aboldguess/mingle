@@ -1,5 +1,5 @@
 /**
- * mingle_server.js
+ * mingle_server.ts
  * Mini README:
  * - Purpose: serve the Mingle client and synchronise avatars via Socket.io.
  * - Structure:
@@ -10,36 +10,36 @@
  *   5. Startup logging with LAN-friendly addresses and HTTP/HTTPS guidance
  * - Notes: set LISTEN_HOST=0.0.0.0 to allow LAN clients. Use --debug for verbose logs.
  */
-const express = require('express');
-const fs = require('fs');
-const http = require('http');
-const https = require('https');
-const path = require('path');
-const os = require('os');
-const { Server } = require('socket.io');
+import express from 'express';
+import fs from 'fs';
+import http from 'http';
+import https from 'https';
+import path from 'path';
+import os from 'os';
+import { Server } from 'socket.io';
 
 // Port and host are configurable via environment variables. LISTEN_HOST is used
 // rather than HOST to avoid clashing with shells that define HOST by default
 // (which can inadvertently bind the server to an unreachable address).
 // Default host 0.0.0.0 exposes the server on all network interfaces.
-const PORT = process.env.PORT || 3000;
-const HOST = process.env.LISTEN_HOST || '0.0.0.0';
-const PROD = process.env.PROD === 'true';
+const PORT: number = Number(process.env.PORT) || 3000;
+const HOST: string = process.env.LISTEN_HOST || '0.0.0.0';
+const PROD: boolean = process.env.PROD === 'true';
 // Enable HTTPS by setting USE_HTTPS=true and providing certificate paths
-const USE_HTTPS = process.env.USE_HTTPS === 'true';
-const KEY_PATH = process.env.SSL_KEY || path.join(__dirname, 'certs', 'mingle.key');
-const CERT_PATH = process.env.SSL_CERT || path.join(__dirname, 'certs', 'mingle.cert');
+const USE_HTTPS: boolean = process.env.USE_HTTPS === 'true';
+const KEY_PATH: string = process.env.SSL_KEY || path.join(__dirname, '../certs', 'mingle.key');
+const CERT_PATH: string = process.env.SSL_CERT || path.join(__dirname, '../certs', 'mingle.cert');
 // Optional debug flag enabled via the --debug command line argument.
 // When active, additional runtime information is printed to the console which
 // assists in diagnosing issues during development.
-const DEBUG = process.argv.includes('--debug');
+const DEBUG: boolean = process.argv.includes('--debug');
 
 const app = express();
 
 // Create either an HTTP or HTTPS server depending on configuration. When HTTPS
 // is enabled the provided certificate is loaded. Fail early if certificates are
 // missing to aid troubleshooting.
-let server;
+let server: http.Server | https.Server;
 if (USE_HTTPS) {
   try {
     const options = {
@@ -56,16 +56,21 @@ if (USE_HTTPS) {
 }
 const io = new Server(server);
 
-// Serve static assets from public directory
-app.use(express.static(path.join(__dirname, 'public')));
+// Serve static assets from public directory. When compiled, __dirname points to
+// the dist folder so we resolve the public assets relative to the project root.
+app.use(express.static(path.join(__dirname, '../public')));
 
 // Expose a small configuration script that allows the client to know if
 // debugging was requested when starting the server. The script simply defines
 // a global variable that the browser can check.
-app.get('/config.js', (req, res) => {
+app.get('/config.js', (_req, res) => {
   res.type('application/javascript');
   res.send(`window.MINGLE_DEBUG = ${DEBUG};`);
 });
+
+interface PositionData {
+  [key: string]: number;
+}
 
 io.on('connection', (socket) => {
   // Always log client connections. Additional details are logged when in
@@ -74,7 +79,7 @@ io.on('connection', (socket) => {
   io.emit('clientCount', io.engine.clientsCount);
 
   // Forward position data to all clients
-  socket.on('position', (data) => {
+  socket.on('position', (data: PositionData) => {
     // Echo the data to every client, including the sender. Clients ignore
     // updates from themselves, ensuring that all connected participants are
     // aware of each other's avatars even if they connect later.
@@ -97,11 +102,12 @@ server.listen(PORT, HOST, () => {
   const protocol = USE_HTTPS ? 'https' : 'http';
   // Determine accessible addresses. When HOST is 0.0.0.0 we list all local
   // IPv4 interfaces so users can easily connect over a LAN.
-  const addresses = [];
+  const addresses: string[] = [];
   if (HOST === '0.0.0.0') {
     const nets = os.networkInterfaces();
     for (const name of Object.keys(nets)) {
-      for (const net of nets[name]) {
+      const netArray = nets[name] || [];
+      for (const net of netArray) {
         if (net.family === 'IPv4' && !net.internal) {
           addresses.push(`${protocol}://${net.address}:${PORT}`);
         }

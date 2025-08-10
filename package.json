@@ -2,13 +2,19 @@
   "name": "mingle",
   "version": "0.1.0",
   "description": "Prototype 3D meeting platform with video avatars",
-  "main": "mingle_server.js",
+  "main": "dist/mingle_server.js",
   "scripts": {
-    "start": "node mingle_server.js",
-    "dev": "node mingle_server.js"
+    "build": "tsc",
+    "start": "npm run build && node dist/mingle_server.js",
+    "dev": "npm run build && node dist/mingle_server.js"
   },
   "dependencies": {
     "express": "^4.21.2",
     "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.11.30",
+    "typescript": "^5.4.5"
   }
 }

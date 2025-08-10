@@ -1,1 +1,6 @@
+# .gitignore
+# Mini README:
+# - Purpose: exclude directories generated during development or build.
+# - Structure: each line specifies a path pattern to ignore.
 node_modules/
+dist/
