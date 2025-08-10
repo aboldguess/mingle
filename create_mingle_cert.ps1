@@ -32,8 +32,15 @@ try {
         -CertStoreLocation Cert:\CurrentUser\My `
         -NotAfter (Get-Date).AddDays(365)
 
-    # Export the public certificate in PEM format.
-    Export-Certificate -Cert $cert -FilePath (Join-Path $certDir 'mingle.cert') | Out-Null
+    # Export the public certificate in PEM format. Export-Certificate defaults
+    # to DER encoding which Node.js cannot parse when it expects PEM, so the
+    # certificate bytes are manually Base64 encoded with the appropriate
+    # delimiters to produce a valid PEM file.
+    $certBytes = $cert.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Cert)
+    $certPem = "-----BEGIN CERTIFICATE-----`n" +
+        [System.Convert]::ToBase64String($certBytes, [System.Base64FormattingOptions]::InsertLineBreaks) +
+        "`n-----END CERTIFICATE-----"
+    Set-Content -Path (Join-Path $certDir 'mingle.cert') -Value $certPem
 
     # Export the private key in PKCS#8 PEM format. PowerShell cannot invoke
     # extension methods using instance syntax, so call the static extension
