@@ -8,13 +8,14 @@ Mini README:
   3. Create self-signed certificate using Windows cryptography.
   4. Export certificate and private key in PEM format.
   5. Remove the temporary certificate from the user store and report success.
-- Notes: no external dependencies such as OpenSSL are required.
+- Notes: requires PowerShell 7+ and no external tools like OpenSSL.
 #>
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-# Detect PowerShell edition and version to ensure compatibility.
+# Detect PowerShell edition and version to ensure compatibility. The script
+# requires PowerShell 7+ because older versions lack modern certificate APIs.
 $edition = $PSVersionTable.PSEdition
 $version = $PSVersionTable.PSVersion
 if ($edition -eq 'Desktop' -and $version.Major -le 5) {
@@ -34,8 +35,14 @@ try {
     # Export the public certificate in PEM format.
     Export-Certificate -Cert $cert -FilePath (Join-Path $certDir 'mingle.cert') | Out-Null
 
-    # Export the private key in PKCS#8 PEM format.
-    $rsa = $cert.GetRSAPrivateKey()
+    # Export the private key in PKCS#8 PEM format. PowerShell cannot invoke
+    # extension methods using instance syntax, so call the static extension
+    # helper to retrieve the RSA key.
+    $rsa = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($cert)
+    if (-not $rsa) {
+        Write-Error "Certificate does not contain an RSA private key."
+        exit 1
+    }
     $keyBytes = $rsa.ExportPkcs8PrivateKey()
     $keyPem = "-----BEGIN PRIVATE KEY-----`n" +
         [System.Convert]::ToBase64String($keyBytes, [System.Base64FormattingOptions]::InsertLineBreaks) +
