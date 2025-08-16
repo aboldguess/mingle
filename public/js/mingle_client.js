@@ -192,7 +192,6 @@ function selectMode(mode) {
   if (currentMode === MODE_SPECTATOR) {
     setSpectateMode(true);
     spectateCam.setAttribute('position', VIEWPOINTS.high.position);
-    spectateMarker.setAttribute('visible', false);
   } else if (currentMode === MODE_LAKITU) {
     setSpectateMode(false);
     avatar.setAttribute('visible', true);
@@ -300,15 +299,26 @@ function movementLoop(time) {
     const yaw = playerCamera.object3D.rotation.y;
     dir.applyEuler(new THREE.Euler(0, yaw, 0));
     if (currentMode === MODE_LAKITU) {
+      // Lakitu camera orbits independently; move the player camera.
       playerCamera.object3D.position.addScaledVector(dir, MOVE_SPEED * dt);
+    } else if (currentMode === MODE_SPECTATOR) {
+      // In spectator mode move the spectator camera and keep the marker in sync.
+      spectateCam.object3D.position.addScaledVector(dir, MOVE_SPEED * dt);
+      spectateMarker.object3D.position.copy(spectateCam.object3D.position);
+      debugLog('Spectator camera moved to', spectateCam.object3D.position);
     } else {
+      // Default first-person movement translates the player entity.
       player.object3D.position.addScaledVector(dir, MOVE_SPEED * dt);
     }
   }
 
   if (currentMode === MODE_SPECTATOR) {
-    // Keep the spectator camera aimed at the avatar.
-    spectateCam.object3D.lookAt(player.object3D.position);
+    // Keep the spectator camera aimed at the avatar unless extremely close to
+    // avoid jitter when both occupy nearly the same space.
+    const dist = spectateCam.object3D.position.distanceTo(player.object3D.position);
+    if (dist > 0.1) {
+      spectateCam.object3D.lookAt(player.object3D.position);
+    }
   }
 
   updateStatus();
