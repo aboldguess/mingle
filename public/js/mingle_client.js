@@ -11,9 +11,9 @@
  *   4. Custom WASD movement handler and real-time status including participant
  *      count
  *   5. Webcam capture and playback
- *   6. Periodic server synchronisation
- *   7. Remote avatar and spectate marker tracking (mirrors local avatar with
- *      placeholder video for other participants)
+ *   6. WebRTC webcam sharing between participants
+ *   7. Periodic server synchronisation
+ *   8. Remote avatar and spectate marker tracking
  */
 
 // Establish socket connection to the server and cache DOM references.
@@ -33,6 +33,10 @@ const modeButtons = modeMenu ? modeMenu.querySelectorAll('button') : [];
 let activeCamera = playerCamera;
 // Track participant count for on-screen diagnostics.
 let connectedClients = 1;
+// Map of peer connections keyed by socket ID for WebRTC video streams.
+const peerConnections = {};
+// Local webcam stream so it can be shared with remote peers.
+let localStream = null;
 
 // Randomise the starting location slightly so newcomers do not overlap and
 // immediately appear to others in the shared world.
@@ -66,6 +70,7 @@ modeButtons.forEach(btn => btn.addEventListener('click', () => selectMode(btn.da
 // look-controls so mouse movement never rotates it.
 spectateCam.setAttribute('wasd-controls', 'enabled', false);
 const sceneEl = document.querySelector('a-scene');
+const assetsEl = sceneEl.querySelector('a-assets');
 
 // Simple helpers that only log when debug mode is enabled. The flag is
 // injected by the server via /config.js.
@@ -112,6 +117,58 @@ socket.on('clientCount', (count) => {
   connectedClients = count;
   updateStatus();
 });
+
+// ---------------------------------------------------------------------------
+// WebRTC signalling for webcam sharing
+// ---------------------------------------------------------------------------
+socket.on('rtc-offer', async ({ from, offer }) => {
+  debugLog('Received RTC offer from', from);
+  const pc = peerConnections[from] || createPeerConnection(from);
+  await pc.setRemoteDescription(new RTCSessionDescription(offer));
+  const answer = await pc.createAnswer();
+  await pc.setLocalDescription(answer);
+  socket.emit('rtc-answer', { to: from, answer });
+});
+
+socket.on('rtc-answer', async ({ from, answer }) => {
+  debugLog('Received RTC answer from', from);
+  const pc = peerConnections[from];
+  if (pc) {
+    await pc.setRemoteDescription(new RTCSessionDescription(answer));
+  }
+});
+
+socket.on('ice-candidate', ({ from, candidate }) => {
+  const pc = peerConnections[from];
+  if (pc && candidate) {
+    pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(err => debugError('ICE add error', err));
+  }
+});
+
+function createPeerConnection(id) {
+  const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+  peerConnections[id] = pc;
+
+  if (localStream) {
+    localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+  }
+
+  pc.ontrack = (event) => {
+    const videoEl = document.getElementById(`video-${id}`);
+    if (videoEl) {
+      videoEl.srcObject = event.streams[0];
+      videoEl.play().catch(err => debugError('Remote video playback failed', err));
+    }
+  };
+
+  pc.onicecandidate = (event) => {
+    if (event.candidate) {
+      socket.emit('ice-candidate', { to: id, candidate: event.candidate });
+    }
+  };
+
+  return pc;
+}
 
 // ---------------------------------------------------------------------------
 // UI controls for spectating and camera viewpoints
@@ -329,6 +386,7 @@ requestAnimationFrame(movementLoop);
 // Capture webcam
 navigator.mediaDevices.getUserMedia({ video: true, audio: false })
   .then(stream => {
+    localStream = stream; // store for WebRTC sharing
     const videoEl = document.getElementById('localVideo');
 
     // Attach the stream to the video element. Muting allows autoplay which
@@ -369,25 +427,46 @@ setInterval(() => {
 // Track remote avatars and their spectate camera markers. Each entry mirrors a
 // participant in the scene so everyone sees all other users.
 const remotes = {};
-socket.on('position', data => {
+socket.on('position', async data => {
   // The server echoes position updates to every client, including the sender.
   // Skip our own entry so only other participants generate remote avatars.
   if (data.id === socket.id) { return; }
 
+  // Ensure a WebRTC peer connection exists so we can receive the remote video.
+  if (!peerConnections[data.id] && localStream) {
+    const pc = createPeerConnection(data.id);
+    if (socket.id < data.id) {
+      try {
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        socket.emit('rtc-offer', { to: data.id, offer: pc.localDescription });
+        debugLog('Sent RTC offer to', data.id);
+      } catch (err) {
+        debugError('Failed to create offer', err);
+      }
+    }
+  }
+
   let remote = remotes[data.id];
   if (!remote) {
     // Remote avatars replicate the local #avatar: a forward-facing plane that
-    // would display the participant's video stream and a white backing plane
-    // so the texture only appears on the front. Video streaming for remotes is
-    // not yet wired up, so we use a grey placeholder colour instead.
+    // displays the participant's video stream and a white backing plane so the
+    // texture only appears on the front.
     const avatarEntity = document.createElement('a-entity');
+
+    const videoEl = document.createElement('video');
+    videoEl.id = `video-${data.id}`;
+    videoEl.autoplay = true;
+    videoEl.playsInline = true;
+    videoEl.muted = true; // no audio in stream but allows autoplay
+    assetsEl.appendChild(videoEl);
 
     const front = document.createElement('a-plane');
     front.setAttribute('width', 1);
     front.setAttribute('height', 1);
     front.setAttribute('position', '0 0 -0.05');
     front.setAttribute('rotation', '0 180 0'); // face the same direction as the avatar
-    front.setAttribute('color', '#888888'); // placeholder until remote video is streamed
+    front.setAttribute('material', `src:#${videoEl.id}`);
 
     const back = document.createElement('a-plane');
     back.setAttribute('width', 1);
@@ -428,5 +507,13 @@ socket.on('disconnectClient', id => {
     remote.avatar.parentNode.removeChild(remote.avatar);
     remote.cam.parentNode.removeChild(remote.cam);
     delete remotes[id];
+  }
+  if (peerConnections[id]) {
+    peerConnections[id].close();
+    delete peerConnections[id];
+  }
+  const vid = document.getElementById(`video-${id}`);
+  if (vid && vid.parentNode) {
+    vid.parentNode.removeChild(vid);
   }
 });

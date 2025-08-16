@@ -6,7 +6,7 @@
  *   1. Configuration flags (port, host, HTTPS, debug)
  *   2. Server creation (HTTP/HTTPS)
  *   3. Static routes and config endpoint
- *   4. Socket.io events for position and participant count updates
+ *   4. Socket.io events for position, participant count and WebRTC signalling
  *   5. Startup logging with LAN-friendly addresses and HTTP/HTTPS guidance
  * - Notes: set LISTEN_HOST=0.0.0.0 to allow LAN clients. Use --debug for verbose logs.
  */
@@ -86,6 +86,27 @@ io.on('connection', (socket) => {
     io.emit('position', { id: socket.id, ...data });
     if (DEBUG) {
       console.log(`Position from ${socket.id}:`, data);
+    }
+  });
+
+  // Relay WebRTC signalling messages between clients. These events allow
+  // browsers to negotiate peer-to-peer connections used for webcam video.
+  socket.on('rtc-offer', ({ to, offer }) => {
+    socket.to(to).emit('rtc-offer', { from: socket.id, offer });
+    if (DEBUG) {
+      console.log(`RTC offer from ${socket.id} to ${to}`);
+    }
+  });
+  socket.on('rtc-answer', ({ to, answer }) => {
+    socket.to(to).emit('rtc-answer', { from: socket.id, answer });
+    if (DEBUG) {
+      console.log(`RTC answer from ${socket.id} to ${to}`);
+    }
+  });
+  socket.on('ice-candidate', ({ to, candidate }) => {
+    socket.to(to).emit('ice-candidate', { from: socket.id, candidate });
+    if (DEBUG && candidate) {
+      console.log(`ICE candidate from ${socket.id} to ${to}`);
     }
   });
 

@@ -8,6 +8,7 @@ first-person avatar whose face displays a live webcam feed.
 - WASD + mouse look movement with the camera pinned to the avatar centre
 - Toggleable spectate mode to view the scene from a fixed overhead camera
 - Webcam feed mapped onto the front face of the local avatar
+- Peer-to-peer webcam sharing so remote avatars display live video via WebRTC
 - Basic multi-user position synchronisation via Socket.io
 - Configurable port via `PORT` environment variable
 - Configurable host via `LISTEN_HOST` environment variable
