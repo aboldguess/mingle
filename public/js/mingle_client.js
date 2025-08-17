@@ -15,7 +15,10 @@ import { initWebRTC } from './webrtc.js';
 import { debugLog, debugError } from './utils.js';
 
 // Establish socket connection and cache DOM references.
-const socket = io();
+// The Socket.IO client may be absent if scripts are loaded out of order or omitted.
+// Guard the creation to prevent runtime exceptions in such cases.
+const socket = window.io ? io() : null;
+if (!socket) console.error('Socket.IO client missing');
 const avatar = document.getElementById('avatar');
 const avatarBack = document.getElementById('avatarBack');
 const player = document.getElementById('player');
@@ -54,17 +57,21 @@ sceneEl.addEventListener('loaded', () => {
   }
 });
 
-socket.on('connect', () => {
-  debugLog('Connected to server', socket.id);
-  document.getElementById('instructions').innerHTML += '<p>Connected to server.</p>';
-});
-socket.on('connect_error', err => {
-  document.getElementById('instructions').innerHTML += '<p>Cannot reach server.</p>';
-  debugError('Socket connection error', err);
-});
-socket.on('clientCount', count => {
-  setConnectedClients(count);
-});
+if (socket) {
+  socket.on('connect', () => {
+    debugLog('Connected to server', socket.id);
+    document.getElementById('instructions').innerHTML += '<p>Connected to server.</p>';
+  });
+  socket.on('connect_error', err => {
+    document.getElementById('instructions').innerHTML += '<p>Cannot reach server.</p>';
+    debugError('Socket connection error', err);
+  });
+  socket.on('clientCount', count => {
+    setConnectedClients(count);
+  });
+} else {
+  console.warn('Networking disabled: Socket.IO client unavailable');
+}
 
 initUIControls({
   player,
@@ -77,5 +84,8 @@ initUIControls({
   statusEl,
   avatar
 });
-initWebRTC({ socket, sceneEl });
-initMovement({ player, playerCamera, spectateCam, spectateMarker, avatar, socket, playerColor });
+
+if (socket) {
+  initWebRTC({ socket, sceneEl });
+  initMovement({ player, playerCamera, spectateCam, spectateMarker, avatar, socket, playerColor });
+}
