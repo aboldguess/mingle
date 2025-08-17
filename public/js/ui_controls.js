@@ -40,19 +40,40 @@ const VIEWPOINTS = {
 };
 
 export function initUIControls(opts) {
-  (
-    {
-      player,
-      playerCamera,
-      spectateCam,
-      spectateMarker,
-      spectateToggle,
-      viewpointRadios,
-      modeMenu,
-      statusEl,
-      avatar
-    } = opts
-  );
+  ({
+    player,
+    playerCamera,
+    spectateCam,
+    spectateMarker,
+    spectateToggle,
+    viewpointRadios,
+    modeMenu,
+    statusEl,
+    avatar
+  } = opts);
+
+  // Validate required DOM elements before wiring listeners. This prevents
+  // runtime errors when elements are missing and keeps already-attached
+  // handlers intact.
+  const deps = {
+    player,
+    playerCamera,
+    spectateCam,
+    spectateMarker,
+    spectateToggle,
+    viewpointRadios: viewpointRadios && viewpointRadios.length ? viewpointRadios : null,
+    modeMenu,
+    statusEl,
+    avatar
+  };
+  const missing = Object.entries(deps)
+    .filter(([, val]) => !val)
+    .map(([name]) => name);
+  missing.forEach(name => console.error(`initUIControls: missing ${name}`));
+  if (missing.length) {
+    console.warn('initUIControls aborted: dependencies missing');
+    return;
+  }
 
   activeCamera = playerCamera;
   spectateCam.setAttribute('wasd-controls', 'enabled', false);
@@ -60,15 +81,13 @@ export function initUIControls(opts) {
   // Wire up explicit handlers for each mode selection button. Delegated
   // listeners on the container failed in some embedded browsers, leaving the
   // menu unresponsive. Direct listeners ensure clicks always register.
-  if (modeMenu) {
-    const buttons = modeMenu.querySelectorAll('button[data-mode]');
-    buttons.forEach(btn => {
-      btn.addEventListener('click', () => {
-        debugLog('Mode button clicked', btn.dataset.mode);
-        selectMode(btn.dataset.mode);
-      });
+  const buttons = modeMenu.querySelectorAll('button[data-mode]');
+  buttons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      debugLog('Mode button clicked', btn.dataset.mode);
+      selectMode(btn.dataset.mode);
     });
-  }
+  });
 
   spectateToggle.addEventListener('change', () => {
     if (currentMode === MODE_LAKITU) {
