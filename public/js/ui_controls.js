@@ -57,15 +57,16 @@ export function initUIControls(opts) {
   activeCamera = playerCamera;
   spectateCam.setAttribute('wasd-controls', 'enabled', false);
 
-  // Delegate clicks on the mode menu so that all current and future buttons
-  // trigger mode selection without relying on NodeList.forEach support.
+  // Wire up explicit handlers for each mode selection button. Delegated
+  // listeners on the container failed in some embedded browsers, leaving the
+  // menu unresponsive. Direct listeners ensure clicks always register.
   if (modeMenu) {
-    modeMenu.addEventListener('click', event => {
-      const button = event.target.closest('button');
-      if (button && button.dataset.mode) {
-        debugLog('Mode button clicked', button.dataset.mode);
-        selectMode(button.dataset.mode);
-      }
+    const buttons = modeMenu.querySelectorAll('button[data-mode]');
+    buttons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        debugLog('Mode button clicked', btn.dataset.mode);
+        selectMode(btn.dataset.mode);
+      });
     });
   }
 
