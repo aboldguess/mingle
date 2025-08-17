@@ -5,8 +5,9 @@
  *   with the server.
  * - Structure:
  *   1. Key state tracking
- *   2. Frame-based movement loop
- *   3. Periodic position emission to the server
+ *   2. Touch movement button handlers
+ *   3. Frame-based movement loop
+ *   4. Periodic position emission to the server
  * - Notes: Depends on ui_controls.js for current mode and status updates.
  */
 import { MODE_LAKITU, MODE_SPECTATOR, getCurrentMode, updateStatus } from './ui_controls.js';
@@ -29,6 +30,35 @@ export function initMovement({ player, playerCamera, spectateCam, spectateMarker
       keys[k] = false;
     }
   });
+
+  // Bind on-screen movement buttons for touch interfaces
+  const btnForward = document.getElementById('moveForward');
+  const btnBackward = document.getElementById('moveBackward');
+  const btnLeft = document.getElementById('moveLeft');
+  const btnRight = document.getElementById('moveRight');
+
+  const bindButton = (btn, key) => {
+    if (!btn) return;
+    const activate = e => {
+      e.preventDefault();
+      keys[key] = true;
+      debugLog(`Button ${key} pressed`);
+    };
+    const deactivate = e => {
+      e.preventDefault();
+      keys[key] = false;
+      debugLog(`Button ${key} released`);
+    };
+    btn.addEventListener('pointerdown', activate);
+    btn.addEventListener('pointerup', deactivate);
+    btn.addEventListener('pointerleave', deactivate);
+    btn.addEventListener('pointercancel', deactivate);
+  };
+
+  bindButton(btnForward, 'w');
+  bindButton(btnBackward, 's');
+  bindButton(btnLeft, 'a');
+  bindButton(btnRight, 'd');
 
   const MOVE_SPEED = 2; // metres per second
   let lastMove = performance.now();
