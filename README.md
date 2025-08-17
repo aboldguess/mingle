@@ -1,5 +1,10 @@
 # Mingle Prototype
 
+> **Mini README**
+> - Purpose: top-level guide for setting up and running the Mingle server prototype.
+> - Structure: 1. Features 2. Quick Start 3. Restricting Allowed Origins 4. HTTPS Requirement 5. Controls 6. Troubleshooting 7. Docker Deployment 8. Logging 9. Development Notes 10. Future Work
+> - Notes: see the Logging section for configuring structured console output.
+
 Mingle is an experimental 3D video meeting environment. Each attendee controls a
 first-person avatar whose face displays a live webcam feed.
 
@@ -16,7 +21,8 @@ first-person avatar whose face displays a live webcam feed.
 - Restrict cross-origin requests via `ALLOWED_ORIGINS` environment variable
 - Optional HTTPS support for secure contexts (`USE_HTTPS=true`)
 - Verbose logs for easy debugging
-- Optional `--debug` flag to surface additional diagnostic information
+- Optional `DEBUG` env variable or `--debug` flag to surface additional diagnostic information
+- Structured logging via [Pino](https://github.com/pinojs/pino) with pretty output when `DEBUG=true` or `--debug`
 - Responsive navigation bar with profile menu linking to account management pages
 - Randomised spawn positions so newcomers are immediately visible
 - On-screen warning when not using HTTPS so webcams and sensors work over LAN
@@ -32,7 +38,8 @@ first-person avatar whose face displays a live webcam feed.
 LISTEN_HOST=0.0.0.0 PORT=8080 npm start  # run over HTTP and allow LAN clients
 # HTTPS example:
 # USE_HTTPS=true PORT=8443 npm start
-# Optional: add --debug for verbose console logging
+# Optional: add DEBUG=true or --debug for verbose console logging
+# DEBUG=true USE_HTTPS=true PORT=8443 npm start
 # USE_HTTPS=true PORT=8443 npm start -- --debug
 ```
 
@@ -51,7 +58,9 @@ npm start                            # run over HTTP and allow LAN clients
 # $env:USE_HTTPS="true"
 # $env:PORT=8443
 # npm start
-# Optional: add --debug for verbose console logging
+# Optional: add DEBUG=true or --debug for verbose console logging
+# $env:DEBUG="true"
+# npm start
 # npm start -- --debug
 ```
 
@@ -96,7 +105,7 @@ allows all participants to meet in the same world.
 ### Troubleshooting
 If you see a blue screen with three loading dots, the webcam stream has not
 started. Confirm that the browser has permission to use the camera. Launching
-the server with the `--debug` flag provides console output that can help
+the server with `DEBUG=true` or the `--debug` flag provides console output that can help
 diagnose the problem.
 
 If other users are not visible, check the user count in the sidebar. A value of
@@ -125,10 +134,32 @@ The container uses the `PORT` environment variable to determine which internal
 port to expose. Adjust the `-p` mapping to match any custom value. The server is
 started in production mode and logs the accessible URLs on launch.
 
+## Logging
+
+The server uses [Pino](https://github.com/pinojs/pino) for structured logging. By default
+logs are JSON formatted at the `info` level. Enable debug level with human-friendly
+formatting via [pino-pretty](https://github.com/pinojs/pino-pretty) by setting the `DEBUG`
+environment variable or passing `--debug`.
+
+### Linux / Raspberry Pi
+```bash
+DEBUG=true npm start              # pretty, verbose logs
+# or
+npm start -- --debug
+```
+
+### Windows (PowerShell)
+```powershell
+$env:DEBUG="true"
+npm start
+# or
+npm start -- --debug
+```
+
 ## Development Notes
 - Set `PROD=true` when starting the server to log production mode.
 - Server and client log connection and debugging information to the terminal
-  console.
+  console via Pino.
 - The codebase is intentionally small and documented to aid further extension.
 
 ## Future Work
