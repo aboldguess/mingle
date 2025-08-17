@@ -1,5 +1,16 @@
-// Navbar logic for Mingle prototype.
-// Handles profile menu toggling and sign-out behaviour with optional debug logs.
+/**
+ * Mingle Navbar Script
+ *
+ * Purpose: Provides interactive navbar behaviour for Mingle pages.
+ *
+ * Structure:
+ * - Helpers: navDebugLog for conditional console output.
+ * - Event bindings: profile menu toggle and dropdown interactions.
+ * - Sign-out handling: intercepts sign-out link to confirm and redirect.
+ *
+ * Notes: Intended for reuse across different pages. Debug logging is enabled
+ * when `window.MINGLE_DEBUG` is true.
+ */
 
 // Helper debug logger to keep verbose output consistent across scripts.
 function navDebugLog(...args) {
