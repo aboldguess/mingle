@@ -5,13 +5,14 @@
  * - Structure:
  *   1. Configuration flags (port, host, HTTPS, debug)
  *   2. Server creation (HTTP/HTTPS)
- *   3. Security middleware (Helmet) followed by static routes and config endpoint
+ *   3. Security middleware (Helmet & CORS) followed by static routes and config endpoint
  *   4. Socket.io events for position, participant count and WebRTC signalling
  *   5. Startup logging with LAN-friendly addresses and HTTP/HTTPS guidance
- * - Notes: set LISTEN_HOST=0.0.0.0 to allow LAN clients. Use --debug for verbose logs. Default security headers applied via Helmet.
+ * - Notes: set LISTEN_HOST=0.0.0.0 to allow LAN clients. Use --debug for verbose logs. Default security headers applied via Helmet and CORS origins are configurable via ALLOWED_ORIGINS.
  */
 import express from 'express';
 import helmet from 'helmet';
+import cors from 'cors';
 import fs from 'fs';
 import http from 'http';
 import https from 'https';
@@ -35,9 +36,21 @@ const CERT_PATH: string = process.env.SSL_CERT || path.join(__dirname, '../certs
 // assists in diagnosing issues during development.
 const DEBUG: boolean = process.argv.includes('--debug');
 
+// Read a comma-separated list of allowed origins for CORS from ALLOWED_ORIGINS.
+// Falling back to an empty array results in permissive behaviour compatible
+// with existing setups while allowing tighter control when specified.
+const allowedOriginsEnv: string = process.env.ALLOWED_ORIGINS || '';
+const ALLOWED_ORIGINS: string[] = allowedOriginsEnv
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+
 const app = express();
 // Apply security headers early to protect all routes
 app.use(helmet());
+// Enable CORS with optional origin restrictions for both HTTP routes and
+// Socket.io. When ALLOWED_ORIGINS is empty all origins are accepted.
+app.use(cors({ origin: ALLOWED_ORIGINS.length ? ALLOWED_ORIGINS : '*' }));
 
 // Create either an HTTP or HTTPS server depending on configuration. When HTTPS
 // is enabled the provided certificate is loaded. Fail early if certificates are
@@ -57,7 +70,9 @@ if (USE_HTTPS) {
 } else {
   server = http.createServer(app);
 }
-const io = new Server(server);
+const io = new Server(server, {
+  cors: { origin: ALLOWED_ORIGINS.length ? ALLOWED_ORIGINS : '*' },
+});
 
 // Serve static assets from public directory. When compiled, __dirname points to
 // the dist folder so we resolve the public assets relative to the project root.

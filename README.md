@@ -13,6 +13,7 @@ first-person avatar whose face displays a live webcam feed.
 - Basic multi-user position synchronisation via Socket.io
 - Configurable port via `PORT` environment variable
 - Configurable host via `LISTEN_HOST` environment variable
+- Restrict cross-origin requests via `ALLOWED_ORIGINS` environment variable
 - Optional HTTPS support for secure contexts (`USE_HTTPS=true`)
 - Verbose logs for easy debugging
 - Optional `--debug` flag to surface additional diagnostic information
@@ -52,6 +53,21 @@ npm start                            # run over HTTP and allow LAN clients
 # npm start
 # Optional: add --debug for verbose console logging
 # npm start -- --debug
+```
+
+### Restricting Allowed Origins
+Limit which websites can connect by defining a comma-separated list in
+`ALLOWED_ORIGINS`. Leaving the variable unset allows all origins.
+
+```bash
+# Linux / Raspberry Pi
+ALLOWED_ORIGINS=http://localhost:8080,http://example.com npm start
+```
+
+```powershell
+# Windows (PowerShell)
+$env:ALLOWED_ORIGINS="http://localhost:8080,http://example.com"
+npm start
 ```
 
 Once running, the server logs every accessible address, e.g.
