@@ -19,6 +19,7 @@ first-person avatar whose face displays a live webcam feed.
 - Randomised spawn positions so newcomers are immediately visible
 - On-screen warning when not using HTTPS so webcams and sensors work over LAN
 - Live participant count displayed for quick diagnostics
+- Default security headers applied via [Helmet](https://helmetjs.github.io/)
 
 ## Quick Start
 
