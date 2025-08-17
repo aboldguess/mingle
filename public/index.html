@@ -165,9 +165,12 @@
   <!-- Initial mode selection menu displayed before entering the world -->
   <div id="modeMenu">
     <p>Select how to enter the world:</p>
-    <button data-mode="fpv">FPV mode</button>
-    <button data-mode="spectator">Spectator mode</button>
-    <button data-mode="lakitu">Lakitu mode</button>
+    <!-- Explicit button types prevent accidental form submission in
+         embedded browsers where default type="submit" could cause
+         page refreshes. -->
+    <button type="button" data-mode="fpv">FPV mode</button>
+    <button type="button" data-mode="spectator">Spectator mode</button>
+    <button type="button" data-mode="lakitu">Lakitu mode</button>
   </div>
   <div id="instructions">
     <p>Choose a mode, then use WASD or tap the on-screen arrows to move and mouse or touch to look. Click to lock pointer.</p>
