@@ -35,8 +35,47 @@ let activeCamera = playerCamera;
 let connectedClients = 1;
 // Map of peer connections keyed by socket ID for WebRTC video streams.
 const peerConnections = {};
-// Local webcam stream so it can be shared with remote peers.
+// Local webcam stream so it can be shared with remote peers. A promise is used
+// so that WebRTC setup can await camera availability, ensuring late joiners
+// still transmit video once their stream initialises.
 let localStream = null;
+const localStreamPromise = navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+  .then(stream => {
+    localStream = stream;
+    const videoEl = document.getElementById('localVideo');
+
+    // Attach the stream to the video element. Muting allows autoplay which
+    // prevents the A-Frame loader from stalling waiting for the video.
+    videoEl.muted = true;
+    videoEl.srcObject = stream;
+    videoEl.onloadeddata = () => {
+      debugLog('Webcam video element loaded');
+      // The scene is already visible because the default loading screen is
+      // disabled, so we avoid manually firing the 'loaded' event which could
+      // trigger A-Frame initialisation before its renderer is ready.
+    };
+
+    // Some browsers require an explicit play() call. Log success/failure for
+    // easier debugging.
+    return videoEl.play()
+      .then(() => {
+        debugLog('Webcam stream started');
+        return stream;
+      })
+      .catch(err => {
+        debugError('Webcam playback failed', err);
+        return stream; // still resolve so connections proceed without video
+      });
+  })
+  .catch(err => {
+    // If the webcam cannot start, log the error (in debug mode) and inform the
+    // user on-screen. The scene still renders thanks to the disabled loading
+    // screen.
+    debugError('Could not start webcam', err);
+    document.getElementById('instructions').innerHTML +=
+      '<p>Webcam unavailable. Check camera permissions.</p>';
+    throw err; // propagate failure so peer connections know no stream exists
+  });
 
 // Randomise the starting location slightly so newcomers do not overlap and
 // immediately appear to others in the shared world.
@@ -123,7 +162,7 @@ socket.on('clientCount', (count) => {
 // ---------------------------------------------------------------------------
 socket.on('rtc-offer', async ({ from, offer }) => {
   debugLog('Received RTC offer from', from);
-  const pc = peerConnections[from] || createPeerConnection(from);
+  const pc = peerConnections[from] || await createPeerConnection(from);
   await pc.setRemoteDescription(new RTCSessionDescription(offer));
   const answer = await pc.createAnswer();
   await pc.setLocalDescription(answer);
@@ -145,12 +184,15 @@ socket.on('ice-candidate', ({ from, candidate }) => {
   }
 });
 
-function createPeerConnection(id) {
+async function createPeerConnection(id) {
   const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
   peerConnections[id] = pc;
 
-  if (localStream) {
-    localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+  try {
+    const stream = await localStreamPromise;
+    stream.getTracks().forEach(track => pc.addTrack(track, stream));
+  } catch (err) {
+    debugError('Local stream unavailable for peer connection', err);
   }
 
   pc.ontrack = (event) => {
@@ -383,38 +425,6 @@ function movementLoop(time) {
 }
 requestAnimationFrame(movementLoop);
 
-// Capture webcam
-navigator.mediaDevices.getUserMedia({ video: true, audio: false })
-  .then(stream => {
-    localStream = stream; // store for WebRTC sharing
-    const videoEl = document.getElementById('localVideo');
-
-    // Attach the stream to the video element. Muting allows autoplay which
-    // prevents the A-Frame loader from stalling waiting for the video.
-    videoEl.muted = true;
-    videoEl.srcObject = stream;
-    videoEl.onloadeddata = () => {
-      debugLog('Webcam video element loaded');
-      // The scene is already visible because the default loading screen is
-      // disabled, so we avoid manually firing the 'loaded' event which could
-      // trigger A-Frame initialisation before its renderer is ready.
-    };
-
-    // Some browsers require an explicit play() call. Log success/failure for
-    // easier debugging.
-    videoEl.play()
-      .then(() => debugLog('Webcam stream started'))
-      .catch(err => debugError('Webcam playback failed', err));
-  })
-  .catch(err => {
-    // If the webcam cannot start, log the error (in debug mode) and inform the
-    // user on-screen. The scene still renders thanks to the disabled loading
-    // screen.
-    debugError('Could not start webcam', err);
-    document.getElementById('instructions').innerHTML +=
-      '<p>Webcam unavailable. Check camera permissions.</p>';
-  });
-
 // Send current position, viewing direction and spectate camera location to the
 // server. The player camera's rotation represents avatar orientation.
 setInterval(() => {
@@ -433,8 +443,8 @@ socket.on('position', async data => {
   if (data.id === socket.id) { return; }
 
   // Ensure a WebRTC peer connection exists so we can receive the remote video.
-  if (!peerConnections[data.id] && localStream) {
-    const pc = createPeerConnection(data.id);
+  if (!peerConnections[data.id]) {
+    const pc = await createPeerConnection(data.id);
     if (socket.id < data.id) {
       try {
         const offer = await pc.createOffer();
