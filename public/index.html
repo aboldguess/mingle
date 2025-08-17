@@ -6,10 +6,11 @@
   - Structure:
     1. Page styling and navigation bar
     2. Entry mode menu and on-screen usage instructions
-    3. Camera control sidebar with real-time status
-    4. A-Frame scene setup with assets, cameras, avatar and spectate marker
+    3. Mobile movement buttons
+    4. Camera control sidebar with real-time status
+    5. A-Frame scene setup with assets, cameras, avatar and spectate marker
        (local and remote avatars display webcam feeds via WebRTC)
-    5. Client scripts for movement and navbar functionality
+    6. Client scripts for movement and navbar functionality
   - Notes: A-Frame's default WASD controls are disabled on all cameras so that
     movement is handled exclusively by custom code in mingle_client.js.
 -->
@@ -109,6 +110,33 @@
       padding: 10px 15px;
       cursor: pointer;
     }
+    /* On-screen movement buttons for touch devices; hidden on wide screens */
+    #movementControls {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      z-index: 150;
+      display: none;
+    }
+    #movementControls button {
+      width: 50px;
+      height: 50px;
+      opacity: 0.8;
+      background: rgba(0,0,0,0.6);
+      color: #fff;
+      border: 1px solid #555;
+      border-radius: 4px;
+      touch-action: none;
+    }
+    @media (max-width: 800px) {
+      #movementControls {
+        display: grid;
+        grid-template-columns: repeat(3, 50px);
+        grid-template-rows: repeat(3, 50px);
+        gap: 5px;
+      }
+      #movementControls .spacer { visibility: hidden; }
+    }
   </style>
   <!--
     Load A-Frame and supporting libraries *before* the scene so that all
@@ -142,8 +170,20 @@
     <button data-mode="lakitu">Lakitu mode</button>
   </div>
   <div id="instructions">
-    <p>Choose a mode, then use WASD to move and mouse to look. Click to lock pointer.</p>
+    <p>Choose a mode, then use WASD or tap the on-screen arrows to move and mouse or touch to look. Click to lock pointer.</p>
     <p>Use the profile button in the top-right to access account options.</p>
+  </div>
+
+  <div id="movementControls">
+    <div class="spacer"></div>
+    <button id="moveForward" aria-label="Move forward">▲</button>
+    <div class="spacer"></div>
+    <button id="moveLeft" aria-label="Move left">◀</button>
+    <div class="spacer"></div>
+    <button id="moveRight" aria-label="Move right">▶</button>
+    <div class="spacer"></div>
+    <button id="moveBackward" aria-label="Move backward">▼</button>
+    <div class="spacer"></div>
   </div>
 
   <aside id="sidebar">

@@ -6,6 +6,7 @@ first-person avatar whose face displays a live webcam feed.
 ## Features
 - Start menu offering FPV, Spectator and Lakitu viewing modes
 - WASD + mouse look movement with the camera pinned to the avatar centre
+- On-screen arrow buttons for movement on touch devices
 - Toggleable spectate mode to view the scene from a fixed overhead camera
 - Webcam feed mapped onto the front face of the local avatar
 - Peer-to-peer webcam sharing so remote avatars display live video via WebRTC
@@ -73,7 +74,7 @@ allows all participants to meet in the same world.
 
 ### Controls
 - Choose FPV, Spectator or Lakitu from the start menu
-- `WASD` to move, mouse to look around
+- `WASD` or tap the on-screen arrows to move; mouse or touch to look around
 - Press `P` to toggle spectate mode (not available in Lakitu mode)
 
 ### Troubleshooting
