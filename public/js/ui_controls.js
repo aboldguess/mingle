@@ -5,7 +5,7 @@
  *   spectate toggling, viewpoint changes and status updates.
  * - Structure:
  *   1. Mode constants and internal state
- *   2. initUIControls() to wire DOM events
+ *   2. initUIControls() to wire DOM events (mode selection via delegation)
  *   3. Helpers for spectate mode and viewpoints
  *   4. Status display and client count management
  * - Notes: Exports helpers so other modules can query the current mode and
@@ -57,8 +57,17 @@ export function initUIControls(opts) {
   activeCamera = playerCamera;
   spectateCam.setAttribute('wasd-controls', 'enabled', false);
 
-  const modeButtons = modeMenu ? modeMenu.querySelectorAll('button') : [];
-  modeButtons.forEach(btn => btn.addEventListener('click', () => selectMode(btn.dataset.mode)));
+  // Delegate clicks on the mode menu so that all current and future buttons
+  // trigger mode selection without relying on NodeList.forEach support.
+  if (modeMenu) {
+    modeMenu.addEventListener('click', event => {
+      const button = event.target.closest('button');
+      if (button && button.dataset.mode) {
+        debugLog('Mode button clicked', button.dataset.mode);
+        selectMode(button.dataset.mode);
+      }
+    });
+  }
 
   spectateToggle.addEventListener('change', () => {
     if (currentMode === MODE_LAKITU) {
