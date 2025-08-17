@@ -5,12 +5,13 @@
  * - Structure:
  *   1. Configuration flags (port, host, HTTPS, debug)
  *   2. Server creation (HTTP/HTTPS)
- *   3. Static routes and config endpoint
+ *   3. Security middleware (Helmet) followed by static routes and config endpoint
  *   4. Socket.io events for position, participant count and WebRTC signalling
  *   5. Startup logging with LAN-friendly addresses and HTTP/HTTPS guidance
- * - Notes: set LISTEN_HOST=0.0.0.0 to allow LAN clients. Use --debug for verbose logs.
+ * - Notes: set LISTEN_HOST=0.0.0.0 to allow LAN clients. Use --debug for verbose logs. Default security headers applied via Helmet.
  */
 import express from 'express';
+import helmet from 'helmet';
 import fs from 'fs';
 import http from 'http';
 import https from 'https';
@@ -35,6 +36,8 @@ const CERT_PATH: string = process.env.SSL_CERT || path.join(__dirname, '../certs
 const DEBUG: boolean = process.argv.includes('--debug');
 
 const app = express();
+// Apply security headers early to protect all routes
+app.use(helmet());
 
 // Create either an HTTP or HTTPS server depending on configuration. When HTTPS
 // is enabled the provided certificate is loaded. Fail early if certificates are
