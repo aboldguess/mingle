@@ -1,15 +1,15 @@
 /**
  * mingle_server.ts
  * Mini README:
- * - Purpose: serve the Mingle client and synchronise avatars via Socket.io.
+ * - Purpose: serve the Mingle client, synchronise avatars via Socket.io and provide structured logging.
  * - Structure:
  *   1. Configuration flags (port, host, HTTPS, debug)
  *   2. Server creation (HTTP/HTTPS)
  *   3. Security middleware (Helmet & CORS) followed by static routes and config endpoint
  *   4. Socket.io events for position, participant count and WebRTC signalling
  *   5. Startup logging with LAN-friendly addresses and HTTP/HTTPS guidance
- * - Notes: set LISTEN_HOST=0.0.0.0 to allow LAN clients. Use --debug for verbose logs. Default security headers applied via Helmet and CORS origins are configurable via ALLOWED_ORIGINS.
- */
+ * - Notes: set LISTEN_HOST=0.0.0.0 to allow LAN clients. Use `DEBUG=true` or `--debug` for verbose, pretty logs. Default security headers applied via Helmet and CORS origins are configurable via ALLOWED_ORIGINS.
+*/
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
@@ -19,6 +19,7 @@ import https from 'https';
 import path from 'path';
 import os from 'os';
 import { Server } from 'socket.io';
+import pino from 'pino';
 
 // Port and host are configurable via environment variables. LISTEN_HOST is used
 // rather than HOST to avoid clashing with shells that define HOST by default
@@ -31,10 +32,21 @@ const PROD: boolean = process.env.PROD === 'true';
 const USE_HTTPS: boolean = process.env.USE_HTTPS === 'true';
 const KEY_PATH: string = process.env.SSL_KEY || path.join(__dirname, '../certs', 'mingle.key');
 const CERT_PATH: string = process.env.SSL_CERT || path.join(__dirname, '../certs', 'mingle.cert');
-// Optional debug flag enabled via the --debug command line argument.
-// When active, additional runtime information is printed to the console which
-// assists in diagnosing issues during development.
-const DEBUG: boolean = process.argv.includes('--debug');
+// Optional debug flag enabled via the --debug command line argument or DEBUG env variable.
+// When active, additional runtime information is printed and logs are pretty formatted
+// to assist in diagnosing issues during development.
+const DEBUG: boolean = process.argv.includes('--debug') || process.env.DEBUG === 'true';
+
+// Structured logger configuration. Pretty printing is only enabled when debugging.
+const logger = pino({
+  level: DEBUG ? 'debug' : 'info',
+  transport: DEBUG
+    ? {
+        target: 'pino-pretty',
+        options: { colorize: true },
+      }
+    : undefined,
+});
 
 // Read a comma-separated list of allowed origins for CORS from ALLOWED_ORIGINS.
 // Falling back to an empty array results in permissive behaviour compatible
@@ -64,7 +76,7 @@ if (USE_HTTPS) {
     };
     server = https.createServer(options, app);
   } catch (err) {
-    console.error('Failed to start HTTPS server. Check certificate paths.', err);
+    logger.error({ err }, 'Failed to start HTTPS server. Check certificate paths.');
     process.exit(1);
   }
 } else {
@@ -93,7 +105,7 @@ interface PositionData {
 io.on('connection', (socket) => {
   // Always log client connections. Additional details are logged when in
   // debug mode to aid troubleshooting networking issues.
-  console.log(`Client connected: ${socket.id}`);
+  logger.info(`Client connected: ${socket.id}`);
   io.emit('clientCount', io.engine.clientsCount);
 
   // Forward position data to all clients
@@ -103,7 +115,7 @@ io.on('connection', (socket) => {
     // aware of each other's avatars even if they connect later.
     io.emit('position', { id: socket.id, ...data });
     if (DEBUG) {
-      console.log(`Position from ${socket.id}:`, data);
+      logger.debug({ data }, `Position from ${socket.id}`);
     }
   });
 
@@ -112,26 +124,26 @@ io.on('connection', (socket) => {
   socket.on('rtc-offer', ({ to, offer }) => {
     socket.to(to).emit('rtc-offer', { from: socket.id, offer });
     if (DEBUG) {
-      console.log(`RTC offer from ${socket.id} to ${to}`);
+      logger.debug(`RTC offer from ${socket.id} to ${to}`);
     }
   });
   socket.on('rtc-answer', ({ to, answer }) => {
     socket.to(to).emit('rtc-answer', { from: socket.id, answer });
     if (DEBUG) {
-      console.log(`RTC answer from ${socket.id} to ${to}`);
+      logger.debug(`RTC answer from ${socket.id} to ${to}`);
     }
   });
   socket.on('ice-candidate', ({ to, candidate }) => {
     socket.to(to).emit('ice-candidate', { from: socket.id, candidate });
     if (DEBUG && candidate) {
-      console.log(`ICE candidate from ${socket.id} to ${to}`);
+      logger.debug(`ICE candidate from ${socket.id} to ${to}`);
     }
   });
 
   socket.on('disconnect', () => {
     // Disconnection events are always logged. In debug mode we can provide
     // further context if needed.
-    console.log(`Client disconnected: ${socket.id}`);
+    logger.info(`Client disconnected: ${socket.id}`);
     socket.broadcast.emit('disconnectClient', socket.id);
     io.emit('clientCount', io.engine.clientsCount);
   });
@@ -155,14 +167,14 @@ server.listen(PORT, HOST, () => {
   } else {
     addresses.push(`${protocol}://${HOST}:${PORT}`);
   }
-  console.log(`Mingle server running in ${PROD ? 'production' : 'development'} mode`);
-  console.log('Accessible at:', addresses.join(', '));
+  logger.info(`Mingle server running in ${PROD ? 'production' : 'development'} mode`);
+  logger.info(`Accessible at: ${addresses.join(', ')}`);
   if (DEBUG) {
-    console.log('Debug mode enabled');
+    logger.debug('Debug mode enabled');
   }
   if (USE_HTTPS) {
-    console.log('HTTPS enabled. Certificates loaded from:', KEY_PATH, CERT_PATH);
+    logger.info(`HTTPS enabled. Certificates loaded from: ${KEY_PATH} ${CERT_PATH}`);
   } else {
-    console.warn('HTTP mode: remote browsers may block webcams and sensors. Start with USE_HTTPS=true for full functionality.');
+    logger.warn('HTTP mode: remote browsers may block webcams and sensors. Start with USE_HTTPS=true for full functionality.');
   }
 });
