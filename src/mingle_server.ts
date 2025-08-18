@@ -63,10 +63,18 @@ const app = express();
 // STUN is permitted for WebRTC connectivity.
 const CSP_DIRECTIVES = {
   defaultSrc: ["'self'"],
-  scriptSrc: ["'self'", 'https://aframe.io', 'https://cdn.jsdelivr.net'],
+  // Allow loading of A-Frame and Socket.IO from trusted CDNs and permit
+  // creation of blob-based workers used by Three.js/A-Frame under the hood.
+  scriptSrc: ["'self'", 'https://aframe.io', 'https://cdn.jsdelivr.net', 'blob:'],
   styleSrc: ["'self'", "'unsafe-inline'"],
   imgSrc: ["'self'", 'data:', 'https://via.placeholder.com'],
-  connectSrc: ["'self'", 'stun:'],
+  // Permit WebRTC STUN traffic and any auxiliary requests A-Frame performs
+  // (such as fetching additional script helpers) along with blob URLs for
+  // webcam streams.
+  connectSrc: ["'self'", 'stun:', 'https://aframe.io', 'https://cdn.jsdelivr.net', 'blob:'],
+  // Explicitly allow blob URLs so MediaStreams can be played without CSP
+  // violations when rendered to <video> elements.
+  mediaSrc: ["'self'", 'blob:'],
 };
 app.use(
   helmet({

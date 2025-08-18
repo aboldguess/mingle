@@ -209,8 +209,10 @@
         Include the video element used for the local webcam feed. The `muted`
         attribute ensures browsers allow autoplay which lets A-Frame finish
         loading instead of leaving the user on the default blue loading screen.
+        The element is hidden so if A-Frame fails to initialise the raw
+        webcam feed does not appear on screen.
       -->
-      <video id="localVideo" autoplay playsinline muted></video>
+      <video id="localVideo" autoplay playsinline muted style="display:none"></video>
     </a-assets>
 
     <!-- Simple floor and lighting -->

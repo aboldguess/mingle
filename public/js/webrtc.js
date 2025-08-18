@@ -21,7 +21,10 @@ export function initWebRTC({ socket, sceneEl }) {
       const videoEl = document.getElementById('localVideo');
       videoEl.muted = true;
       videoEl.srcObject = stream;
-      videoEl.onloadeddata = () => debugLog('Webcam video element loaded');
+      // Hide the element to avoid displaying the raw feed if the A-Frame scene
+      // fails to initialise and <a-assets> remains visible.
+      videoEl.style.display = 'none';
+     videoEl.onloadeddata = () => debugLog('Webcam video element loaded');
       return videoEl.play()
         .then(() => { debugLog('Webcam stream started'); return stream; })
         .catch(err => { debugError('Webcam playback failed', err); return stream; });
@@ -110,6 +113,9 @@ export function initWebRTC({ socket, sceneEl }) {
       videoEl.autoplay = true;
       videoEl.playsInline = true;
       videoEl.muted = true;
+      // Ensure remote video elements never leak onto the page should A-Frame
+      // fail to hide <a-assets> when blocked by CSP or similar issues.
+      videoEl.style.display = 'none';
       assetsEl.appendChild(videoEl);
 
       const front = document.createElement('a-plane');
