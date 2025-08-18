@@ -8,7 +8,7 @@
  *   3. Security middleware (Helmet & CORS) followed by static routes and config endpoint
  *   4. Socket.io events for position, participant count and WebRTC signalling
  *   5. Startup logging with LAN-friendly addresses and HTTP/HTTPS guidance
- * - Notes: set LISTEN_HOST=0.0.0.0 to allow LAN clients. Use `DEBUG=true` or `--debug` for verbose, pretty logs. Default security headers applied via Helmet and CORS origins are configurable via ALLOWED_ORIGINS.
+ * - Notes: set LISTEN_HOST=0.0.0.0 to allow LAN clients. Use `DEBUG=true` or `--debug` for verbose, pretty logs. Default security headers and a restrictive content security policy are applied via Helmet; CORS origins are configurable via ALLOWED_ORIGINS.
 */
 import express from 'express';
 import helmet from 'helmet';
@@ -58,8 +58,21 @@ const ALLOWED_ORIGINS: string[] = allowedOriginsEnv
   .filter(Boolean);
 
 const app = express();
-// Apply security headers early to protect all routes
-app.use(helmet());
+// Apply security headers early with a strict but functional Content Security Policy.
+// Only allow external scripts and resources required by the client (A-Frame, Socket.IO and placeholder images).
+// STUN is permitted for WebRTC connectivity.
+const CSP_DIRECTIVES = {
+  defaultSrc: ["'self'"],
+  scriptSrc: ["'self'", 'https://aframe.io', 'https://cdn.jsdelivr.net'],
+  styleSrc: ["'self'", "'unsafe-inline'"],
+  imgSrc: ["'self'", 'data:', 'https://via.placeholder.com'],
+  connectSrc: ["'self'", 'stun:'],
+};
+app.use(
+  helmet({
+    contentSecurityPolicy: { directives: CSP_DIRECTIVES },
+  })
+);
 // Enable CORS with optional origin restrictions for both HTTP routes and
 // Socket.io. When ALLOWED_ORIGINS is empty all origins are accepted.
 app.use(cors({ origin: ALLOWED_ORIGINS.length ? ALLOWED_ORIGINS : '*' }));
