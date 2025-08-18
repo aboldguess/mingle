@@ -8,8 +8,12 @@
  *   2. initUIControls() to wire DOM events (mode selection via delegation)
  *   3. Helpers for spectate mode and viewpoints
  *   4. Status display and client count management
- * - Notes: Exports helpers so other modules can query the current mode and
- *   active camera for movement and networking logic.
+ * - Notes:
+ *   - Spectate toggle and viewpoint radios are optional; listeners attach only
+ *     when present.
+ *   - Required elements missing during init will surface an on-screen error.
+ *   - Exports helpers so other modules can query the current mode and active
+ *     camera for movement and networking logic.
  */
 import { debugLog } from './utils.js';
 
@@ -52,26 +56,40 @@ export function initUIControls(opts) {
     avatar
   } = opts);
 
-  // Validate required DOM elements before wiring listeners. This prevents
-  // runtime errors when elements are missing and keeps already-attached
-  // handlers intact.
-  const deps = {
+  // Optional dependencies are normalised to null when absent/empty so later
+  // code can safely check their presence.
+  viewpointRadios = viewpointRadios && viewpointRadios.length ? viewpointRadios : null;
+
+  // Validate required DOM elements before wiring listeners. Optional elements
+  // (spectateToggle & viewpointRadios) won't block initialisation.
+  const requiredDeps = {
     player,
     playerCamera,
     spectateCam,
     spectateMarker,
-    spectateToggle,
-    viewpointRadios: viewpointRadios && viewpointRadios.length ? viewpointRadios : null,
     modeMenu,
     statusEl,
     avatar
   };
-  const missing = Object.entries(deps)
+  const missing = Object.entries(requiredDeps)
     .filter(([, val]) => !val)
     .map(([name]) => name);
   missing.forEach(name => console.error(`initUIControls: missing ${name}`));
   if (missing.length) {
-    console.warn('initUIControls aborted: dependencies missing');
+    // Surface an on-screen message to aid end users when init fails.
+    const msg = document.createElement('div');
+    msg.textContent = `Client failed to initialise: missing ${missing.join(', ')}`;
+    msg.style.position = 'absolute';
+    msg.style.top = '0';
+    msg.style.left = '0';
+    msg.style.right = '0';
+    msg.style.background = '#ff4d4f';
+    msg.style.color = '#fff';
+    msg.style.padding = '1em';
+    msg.style.textAlign = 'center';
+    msg.style.zIndex = '1000';
+    document.body.appendChild(msg);
+    console.warn('initUIControls aborted: required dependencies missing');
     return;
   }
 
@@ -89,26 +107,31 @@ export function initUIControls(opts) {
     });
   });
 
-  spectateToggle.addEventListener('change', () => {
-    if (currentMode === MODE_LAKITU) {
-      spectateToggle.checked = false;
-      return;
-    }
-    setSpectateMode(spectateToggle.checked);
-    currentMode = spectating ? MODE_SPECTATOR : MODE_FPV;
-    updateStatus();
-  });
-
-  viewpointRadios.forEach(radio => {
-    radio.addEventListener('change', () => {
-      if (radio.checked) {
-        currentView = radio.value;
-        applyViewpoint();
-        updateStatus();
-        debugLog('Viewpoint changed to', currentView);
+  // Attach optional UI listeners only when those controls exist on the page.
+  if (spectateToggle) {
+    spectateToggle.addEventListener('change', () => {
+      if (currentMode === MODE_LAKITU) {
+        spectateToggle.checked = false;
+        return;
       }
+      setSpectateMode(spectateToggle.checked);
+      currentMode = spectating ? MODE_SPECTATOR : MODE_FPV;
+      updateStatus();
     });
-  });
+  }
+
+  if (viewpointRadios) {
+    viewpointRadios.forEach(radio => {
+      radio.addEventListener('change', () => {
+        if (radio.checked) {
+          currentView = radio.value;
+          applyViewpoint();
+          updateStatus();
+          debugLog('Viewpoint changed to', currentView);
+        }
+      });
+    });
+  }
 
   document.addEventListener('keydown', e => {
     if (e.key.toLowerCase() === 'p' && currentMode !== MODE_LAKITU) {
@@ -157,7 +180,9 @@ function setSpectateMode(enabled) {
     }
     debugLog('Spectate mode disabled');
   }
-  spectateToggle.checked = spectating;
+  if (spectateToggle) {
+    spectateToggle.checked = spectating;
+  }
 }
 
 function selectMode(mode) {
