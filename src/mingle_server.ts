@@ -75,6 +75,10 @@ const CSP_DIRECTIVES = {
   // Explicitly allow blob URLs so MediaStreams can be played without CSP
   // violations when rendered to <video> elements.
   mediaSrc: ["'self'", 'blob:'],
+  // Permit creation of Web Workers from blob URLs; required by A-Frame/Three.js
+  // for features like compressed texture loading and is essential for the 3D
+  // scene to initialise correctly.
+  workerSrc: ["'self'", 'blob:'],
 };
 app.use(
   helmet({
