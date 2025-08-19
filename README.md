@@ -89,6 +89,48 @@ If `create_mingle_cert.ps1` reports that `GetRSAPrivateKey` is missing, the
 script is running under Windows PowerShell 5.1. Launch it from a PowerShell 7
 (`pwsh`) session or use the `create_mingle_cert.sh` script under WSL.
 
+## Microphone Audio
+
+Mingle relies on the browser's WebRTC stack for voice chat. Browsers require a
+secure context and explicit permission before exposing the microphone.
+
+### Setup (Linux / Raspberry Pi)
+```bash
+# List devices and optionally record a 3s sample
+./debug_mingle_audio.sh
+
+# Example: select a specific ALSA device and enable verbose logging
+MINGLE_AUDIO_DEVICE=hw:1,0 MINGLE_AUDIO_DEBUG=true ./debug_mingle_audio.sh
+```
+Ensure the `arecord` or `pactl` utility is installed. Recording a sample
+requires `ffmpeg`. Run the server with `USE_HTTPS=true` so the browser can grant
+microphone access.
+
+### Setup (Windows PowerShell)
+```powershell
+# List devices and optionally record a 3s sample
+./debug_mingle_audio.ps1
+
+# Example: select a device and enable verbose logging
+$env:MINGLE_AUDIO_DEVICE="Your Microphone"; $env:MINGLE_AUDIO_DEBUG="true"; ./debug_mingle_audio.ps1
+```
+`Get-PnpDevice` may require administrative privileges. Recording a sample uses
+`ffmpeg` if present in the `PATH`. Start the server with `$env:USE_HTTPS="true"`
+to allow the browser to request microphone permissions.
+
+### Environment Variables
+- `MINGLE_AUDIO_DEVICE` – optional device name or ID for the debug scripts.
+- `MINGLE_AUDIO_DEBUG` – set to `true` to record a short sample for diagnostics.
+
+### Troubleshooting
+- Always serve the site over HTTPS; browsers block microphone access on HTTP.
+- Confirm the browser prompts for microphone access and that permission is
+  granted.
+- Run the server with `--debug` or set `MINGLE_AUDIO_DEBUG=true` for additional
+  logging.
+- Use the provided debug scripts to verify that the OS detects the microphone
+  and to capture a short test recording.
+
 ## Docker Deployment
 
 ### Linux / Raspberry Pi
