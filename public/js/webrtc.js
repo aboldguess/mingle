@@ -71,11 +71,23 @@ export function initWebRTC({ socket, sceneEl }) {
     }
 
     pc.ontrack = event => {
-      const videoEl = document.getElementById(`video-${id}`);
-      if (videoEl) {
-        videoEl.srcObject = event.streams[0];
-        videoEl.play().catch(err => debugError('Remote video playback failed', err));
+      // Locate or lazily create the corresponding video element. In rare cases
+      // the remote stream can arrive before the <video> element is added to the
+      // DOM (e.g. if signalling completes extremely quickly). Creating it here
+      // prevents the stream from being lost and ensures every peer's feed is
+      // rendered.
+      let videoEl = document.getElementById(`video-${id}`);
+      if (!videoEl) {
+        videoEl = document.createElement('video');
+        videoEl.id = `video-${id}`;
+        videoEl.autoplay = true;
+        videoEl.playsInline = true;
+        videoEl.muted = true;
+        videoEl.style.display = 'none';
+        assetsEl.appendChild(videoEl);
       }
+      videoEl.srcObject = event.streams[0];
+      videoEl.play().catch(err => debugError('Remote video playback failed', err));
     };
 
     pc.onicecandidate = event => {
@@ -89,20 +101,6 @@ export function initWebRTC({ socket, sceneEl }) {
 
   socket.on('position', async data => {
     if (data.id === socket.id) { return; }
-
-    if (!peerConnections[data.id]) {
-      const pc = await createPeerConnection(data.id);
-      if (socket.id < data.id) {
-        try {
-          const offer = await pc.createOffer();
-          await pc.setLocalDescription(offer);
-          socket.emit('rtc-offer', { to: data.id, offer: pc.localDescription });
-          debugLog('Sent RTC offer to', data.id);
-        } catch (err) {
-          debugError('Failed to create offer', err);
-        }
-      }
-    }
 
     let remote = remotes[data.id];
     if (!remote) {
@@ -146,6 +144,20 @@ export function initWebRTC({ socket, sceneEl }) {
       remotes[data.id] = { avatar: avatarEntity, cam: camBox };
       remote = remotes[data.id];
       debugLog('Remote avatar created for', data.id);
+    }
+
+    if (!peerConnections[data.id]) {
+      const pc = await createPeerConnection(data.id);
+      if (socket.id < data.id) {
+        try {
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          socket.emit('rtc-offer', { to: data.id, offer: pc.localDescription });
+          debugLog('Sent RTC offer to', data.id);
+        } catch (err) {
+          debugError('Failed to create offer', err);
+        }
+      }
     }
 
     remote.avatar.setAttribute('position', data.position);
