@@ -86,6 +86,22 @@ initUIControls({
 });
 
 if (socket) {
-  initWebRTC({ socket, sceneEl });
-  initMovement({ player, playerCamera, spectateCam, spectateMarker, avatar, socket, playerColor });
+  // Attempt to start WebRTC; on failure fall back to movement-only mode.
+  try {
+    initWebRTC({ socket, sceneEl });
+  } catch (err) {
+    document.getElementById('instructions').innerHTML +=
+      '<p>Webcam unavailable; running without video.</p>';
+    debugError('WebRTC initialisation failed', err);
+  }
+  // Always initialise movement so the 3D scene remains interactive.
+  initMovement({
+    player,
+    playerCamera,
+    spectateCam,
+    spectateMarker,
+    avatar,
+    socket,
+    playerColor
+  });
 }
