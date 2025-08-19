@@ -5,7 +5,7 @@
 # - Structure:
 #   1. List devices using arecord or pactl.
 #   2. Optionally record a 3s sample when MINGLE_AUDIO_DEBUG=true.
-# - Notes: requires alsa-utils or pulseaudio-utils. Set MINGLE_AUDIO_DEVICE to choose a device. ffmpeg is used for recording if available.
+# - Notes: Not required for normal microphone use—the browser handles capture automatically. Requires alsa-utils or pulseaudio-utils. Set MINGLE_AUDIO_DEVICE to choose a device. ffmpeg is used for recording if available.
 set -euo pipefail
 
 DEVICE="${MINGLE_AUDIO_DEVICE:-}"

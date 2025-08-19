@@ -7,7 +7,7 @@
   - Structure:
     1. List devices using Get-PnpDevice.
     2. Optionally record a 3s sample when $env:MINGLE_AUDIO_DEBUG is true.
-  - Notes: requires ffmpeg in PATH for recording. Set $env:MINGLE_AUDIO_DEVICE to specify the capture device.
+  - Notes: Not required for normal microphone use—the browser handles capture automatically. Requires ffmpeg in PATH for recording. Set $env:MINGLE_AUDIO_DEVICE to specify the capture device.
 #>
 Set-StrictMode -Version Latest
 
