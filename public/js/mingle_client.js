@@ -29,6 +29,24 @@ const spectateToggle = document.getElementById('spectateToggle');
 const statusEl = document.getElementById('status');
 const viewpointRadios = document.querySelectorAll('input[name="viewpoint"]');
 const modeMenu = document.getElementById('modeMenu');
+const instructionsEl = document.getElementById('instructions');
+
+// Ensure the A-Frame library is present and the environment supports WebGL
+// before attempting any further initialisation. Without these prerequisites the
+// client cannot function correctly, so surface a clear error to the user and
+// abort remaining setup.
+if (!window.AFRAME) {
+  instructionsEl.innerHTML +=
+    '<p><strong>Error:</strong> A-Frame library not loaded.</p>';
+  console.error('A-Frame library not loaded');
+  throw new Error('A-Frame library not loaded');
+}
+if (!AFRAME.utils.device.isWebGLAvailable()) {
+  instructionsEl.innerHTML +=
+    '<p><strong>Error:</strong> WebGL not supported by this browser.</p>';
+  console.error('WebGL not available');
+  throw new Error('WebGL not available');
+}
 
 // Randomise starting location slightly so newcomers do not overlap.
 const startPos = { x: Math.random() * 4 - 2, y: 1.6, z: Math.random() * 4 - 2 };
@@ -36,7 +54,7 @@ player.setAttribute('position', startPos);
 
 // Warn when not using HTTPS as webcams and sensors require secure contexts.
 if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
-  document.getElementById('instructions').innerHTML +=
+  instructionsEl.innerHTML +=
     '<p><strong>HTTPS required:</strong> Access this site over HTTPS to enable the webcam, VR mode and device sensors.</p>';
   debugLog('Insecure context detected; camera and sensors disabled until HTTPS is used.');
 }
@@ -60,10 +78,10 @@ sceneEl.addEventListener('loaded', () => {
 if (socket) {
   socket.on('connect', () => {
     debugLog('Connected to server', socket.id);
-    document.getElementById('instructions').innerHTML += '<p>Connected to server.</p>';
+    instructionsEl.innerHTML += '<p>Connected to server.</p>';
   });
   socket.on('connect_error', err => {
-    document.getElementById('instructions').innerHTML += '<p>Cannot reach server.</p>';
+    instructionsEl.innerHTML += '<p>Cannot reach server.</p>';
     debugError('Socket connection error', err);
   });
   socket.on('clientCount', count => {
@@ -90,7 +108,7 @@ if (socket) {
   try {
     initWebRTC({ socket, sceneEl });
   } catch (err) {
-    document.getElementById('instructions').innerHTML +=
+    instructionsEl.innerHTML +=
       '<p>Webcam unavailable; running without video.</p>';
     debugError('WebRTC initialisation failed', err);
   }
