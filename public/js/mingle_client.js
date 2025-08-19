@@ -10,8 +10,8 @@
  *   3. Start menu and UI controls for spectating and fixed camera viewpoints
  *   4. Custom WASD movement handler and real-time status including participant
  *      count
- *   5. Webcam capture and playback
- *   6. WebRTC webcam sharing between participants
+ *   5. Webcam and microphone capture and playback
+ *   6. WebRTC audio/video sharing between participants
  *   7. Periodic server synchronisation
  *   8. Remote avatar and spectate marker tracking
  */
@@ -39,10 +39,19 @@ const peerConnections = {};
 // so that WebRTC setup can await camera availability, ensuring late joiners
 // still transmit video once their stream initialises.
 let localStream = null;
-const localStreamPromise = navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+// Request both video and audio so microphone capture is available for voice chat.
+const localStreamPromise = navigator.mediaDevices
+  .getUserMedia({ video: true, audio: true })
   .then(stream => {
     localStream = stream;
     const videoEl = document.getElementById('localVideo');
+
+    const audioTracks = stream.getAudioTracks();
+    if (audioTracks.length > 0) {
+      debugLog(`Microphone capture started: ${audioTracks[0].label || 'unknown'} track`);
+    } else {
+      debugError('No audio tracks found in local stream');
+    }
 
     // Attach the stream to the video element. Muting allows autoplay which
     // prevents the A-Frame loader from stalling waiting for the video.
@@ -68,12 +77,12 @@ const localStreamPromise = navigator.mediaDevices.getUserMedia({ video: true, au
       });
   })
   .catch(err => {
-    // If the webcam cannot start, log the error (in debug mode) and inform the
-    // user on-screen. The scene still renders thanks to the disabled loading
-    // screen.
-    debugError('Could not start webcam', err);
+    // If the webcam or microphone cannot start, log the error (in debug mode)
+    // and inform the user on-screen. The scene still renders thanks to the
+    // disabled loading screen.
+    debugError('Could not start webcam or microphone', err);
     document.getElementById('instructions').innerHTML +=
-      '<p>Webcam unavailable. Check camera permissions.</p>';
+      '<p>Webcam or microphone unavailable. Check media permissions.</p>';
     throw err; // propagate failure so peer connections know no stream exists
   });
 
@@ -190,7 +199,10 @@ async function createPeerConnection(id) {
 
   try {
     const stream = await localStreamPromise;
+    // Share both video and audio tracks so peers receive full AV streams.
     stream.getTracks().forEach(track => pc.addTrack(track, stream));
+    debugLog('Added local tracks to peer connection',
+      stream.getTracks().map(t => t.kind));
   } catch (err) {
     debugError('Local stream unavailable for peer connection', err);
   }
@@ -468,7 +480,7 @@ socket.on('position', async data => {
     videoEl.id = `video-${data.id}`;
     videoEl.autoplay = true;
     videoEl.playsInline = true;
-    videoEl.muted = true; // no audio in stream but allows autoplay
+    videoEl.muted = false; // allow remote audio playback; may require user gesture
     assetsEl.appendChild(videoEl);
 
     const front = document.createElement('a-plane');
