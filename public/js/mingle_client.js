@@ -213,6 +213,12 @@ async function createPeerConnection(id) {
       videoEl.srcObject = event.streams[0];
       videoEl.play().catch(err => debugError('Remote video playback failed', err));
     }
+    // Route accompanying audio through positional sound helpers.
+    if (typeof attachRemoteAudio === 'function') {
+      attachRemoteAudio(event.streams[0], id);
+    } else {
+      debugError('attachRemoteAudio not available for remote stream', id);
+    }
   };
 
   pc.onicecandidate = (event) => {
@@ -475,6 +481,7 @@ socket.on('position', async data => {
     // displays the participant's video stream and a white backing plane so the
     // texture only appears on the front.
     const avatarEntity = document.createElement('a-entity');
+    avatarEntity.id = `avatar-${data.id}`; // allow audio entities to attach for spatial sound
 
     const videoEl = document.createElement('video');
     videoEl.id = `video-${data.id}`;
