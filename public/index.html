@@ -144,10 +144,13 @@
   <div id="instructions">
     <p>Choose a mode, then use WASD to move and mouse to look. Click to lock pointer.</p>
     <p>Use the profile button in the top-right to access account options.</p>
+    <p>Allow microphone access when prompted so others can hear you. Use the mute control in the sidebar to silence yourself.</p>
   </div>
 
   <aside id="sidebar">
     <label><input type="checkbox" id="spectateToggle"> Spectate mode</label><br />
+    <label><input type="checkbox" id="muteToggle"> Mute microphone</label><br />
+    <div id="micStatus">Mic: live</div>
     <div>
       <p>Viewpoint:</p>
       <label><input type="radio" name="viewpoint" value="high" checked> High corner</label><br />
@@ -208,6 +211,7 @@
   <!-- Client logic is loaded last once the DOM and libraries are ready -->
   <script src="js/mingle_client.js"></script>
   <script src="js/webrtc.js"></script>
+  <script src="js/ui_controls.js"></script>
   <script src="js/mingle_navbar.js"></script>
 </body>
 </html>
