@@ -9,11 +9,28 @@
  *   3. Frame-based movement loop
  *   4. Periodic position emission to the server
  * - Notes: Depends on ui_controls.js for current mode and status updates.
+ *   Requires global Three.js (window.THREE); if absent movement is disabled
+ *   with a visible on-screen error.
  */
 import { MODE_LAKITU, MODE_SPECTATOR, getCurrentMode, updateStatus } from './ui_controls.js';
 import { debugLog } from './utils.js';
 
 export function initMovement({ player, playerCamera, spectateCam, spectateMarker, avatar, socket, playerColor }) {
+  // Capture Three.js reference once to avoid repeated global lookups.
+  const THREERef = window.THREE;
+  if (!THREERef) {
+    const msg = 'Three.js not loaded; movement disabled';
+    const instructions = document.getElementById('instructions');
+    if (instructions) {
+      const err = document.createElement('div');
+      err.style.color = 'red';
+      err.textContent = msg;
+      instructions.appendChild(err);
+    }
+    console.error(msg);
+    return; // Skip starting movement loop when Three.js is unavailable.
+  }
+
   const keys = { w: false, a: false, s: false, d: false };
 
   document.addEventListener('keydown', e => {
@@ -76,7 +93,7 @@ export function initMovement({ player, playerCamera, spectateCam, spectateMarker
       avatar.object3D.rotation.copy(playerCamera.object3D.rotation);
     }
 
-    const dir = new THREE.Vector3();
+    const dir = new THREERef.Vector3();
     if (keys.w) dir.z -= 1;
     if (keys.s) dir.z += 1;
     if (keys.a) dir.x -= 1;
@@ -85,7 +102,7 @@ export function initMovement({ player, playerCamera, spectateCam, spectateMarker
     if (dir.lengthSq() > 0) {
       dir.normalize();
       const yaw = playerCamera.object3D.rotation.y;
-      dir.applyEuler(new THREE.Euler(0, yaw, 0));
+      dir.applyEuler(new THREERef.Euler(0, yaw, 0));
       if (mode === MODE_LAKITU) {
         playerCamera.object3D.position.addScaledVector(dir, MOVE_SPEED * dt);
       } else if (mode === MODE_SPECTATOR) {
