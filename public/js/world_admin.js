@@ -6,8 +6,9 @@
  *   1. Helper debug logger
  *   2. Load existing config when requested
  *   3. Submit updates back to the server
+ *   4. Handle world design (geometry and colour) fields
  * - Notes: requires the admin token set on the server. Token is provided via the form.
- */
+*/
 function adminDebugLog(...args) {
   if (window.MINGLE_DEBUG) {
     console.log(...args);
@@ -18,6 +19,8 @@ const tokenInput = document.getElementById('token');
 const worldNameInput = document.getElementById('worldName');
 const maxParticipantsInput = document.getElementById('maxParticipants');
 const welcomeMessageInput = document.getElementById('welcomeMessage');
+const worldGeometrySelect = document.getElementById('worldGeometry');
+const worldColorInput = document.getElementById('worldColor');
 
 async function loadConfig() {
   const token = tokenInput.value.trim();
@@ -34,6 +37,8 @@ async function loadConfig() {
     worldNameInput.value = data.worldName;
     maxParticipantsInput.value = data.maxParticipants;
     welcomeMessageInput.value = data.welcomeMessage;
+    worldGeometrySelect.value = data.worldGeometry || 'plane';
+    worldColorInput.value = data.worldColor || '#00aaff';
     adminDebugLog('Loaded config', data);
   } catch (err) {
     console.error(err);
@@ -53,6 +58,8 @@ async function saveConfig() {
     worldName: worldNameInput.value.trim(),
     maxParticipants: Number(maxParticipantsInput.value),
     welcomeMessage: welcomeMessageInput.value.trim(),
+    worldGeometry: worldGeometrySelect.value,
+    worldColor: worldColorInput.value,
   };
   try {
     const res = await fetch('/world-config', {

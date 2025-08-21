@@ -6,7 +6,8 @@
   - Structure:
     1. Navbar reused across Mingle pages
     2. Instructional form for admin token and world configuration values
-    3. Client-side script to load and save settings via the secure API
+    3. Fields for world design (geometry and colour)
+    4. Client-side script to load and save settings via the secure API
   - Notes: requires the server to be started with ADMIN_TOKEN for access.
 -->
 <html lang="en">
@@ -62,6 +63,14 @@
     <input type="number" id="maxParticipants" min="1" value="20" />
     <label for="welcomeMessage">Welcome Message</label>
     <textarea id="welcomeMessage" rows="3" placeholder="Welcome to Mingle"></textarea>
+    <label for="worldGeometry">World Geometry</label>
+    <select id="worldGeometry">
+      <option value="plane">Plane</option>
+      <option value="cube">Cube</option>
+      <option value="sphere">Sphere</option>
+    </select>
+    <label for="worldColor">World Colour</label>
+    <input type="color" id="worldColor" value="#00aaff" />
     <button id="loadBtn">Load Current Config</button>
     <button id="saveBtn">Save Config</button>
   </main>

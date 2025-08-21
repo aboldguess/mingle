@@ -76,16 +76,22 @@ app.get('/config.js', (_req, res) => {
 });
 
 // In-memory world configuration. The admin page can fetch and update these
-// values via a small REST API guarded by a token header.
+// values via a small REST API guarded by a token header. Design properties such
+// as geometry and colour are included so the environment can be themed without
+// redeploying the server.
 interface WorldConfig {
   worldName: string;
   maxParticipants: number;
   welcomeMessage: string;
+  worldGeometry: string;
+  worldColor: string;
 }
 const worldConfig: WorldConfig = {
   worldName: 'Mingle World',
   maxParticipants: 20,
   welcomeMessage: 'Welcome to Mingle',
+  worldGeometry: 'plane',
+  worldColor: '#00aaff',
 };
 
 function verifyAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
@@ -105,7 +111,7 @@ if (ADMIN_TOKEN) {
   });
 
   app.post('/world-config', verifyAdmin, (req, res) => {
-    const { worldName, maxParticipants, welcomeMessage } = req.body;
+    const { worldName, maxParticipants, welcomeMessage, worldGeometry, worldColor } = req.body;
     if (typeof worldName === 'string') {
       worldConfig.worldName = worldName;
     }
@@ -114,6 +120,13 @@ if (ADMIN_TOKEN) {
     }
     if (typeof welcomeMessage === 'string') {
       worldConfig.welcomeMessage = welcomeMessage;
+    }
+    const allowedGeometries = ['plane', 'cube', 'sphere'];
+    if (typeof worldGeometry === 'string' && allowedGeometries.includes(worldGeometry)) {
+      worldConfig.worldGeometry = worldGeometry;
+    }
+    if (typeof worldColor === 'string' && /^#[0-9a-fA-F]{6}$/.test(worldColor)) {
+      worldConfig.worldColor = worldColor;
     }
     console.log('World configuration updated:', worldConfig);
     res.json({ status: 'ok' });
