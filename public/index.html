@@ -91,6 +91,15 @@
       font-size: 12px;
       color: #333;
     }
+    /* Containers for on-screen joysticks on touch devices */
+    #moveJoystick, #lookJoystick {
+      position: fixed;
+      width: 120px;
+      height: 120px;
+      z-index: 180;
+    }
+    #moveJoystick { left: 0; bottom: 0; }
+    #lookJoystick { right: 0; bottom: 0; display: none; }
     /* Simple start menu allowing users to choose their entry mode */
     #modeMenu {
       position: fixed;
@@ -117,6 +126,7 @@
   -->
   <script src="https://aframe.io/releases/1.7.1/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.8.1/dist/socket.io.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/nipplejs@0.10.2/dist/nipplejs.min.js"></script>
   <script src="/config.js"></script>
 </head>
 <body>
@@ -145,11 +155,13 @@
     <p>Choose a mode, then use WASD to move and mouse to look. Click to lock pointer.</p>
     <p>Use the profile button in the top-right to access account options.</p>
     <p>Allow microphone access when prompted so others can hear you. Use the mute control in the sidebar to silence yourself.</p>
+    <p>On touch devices, a left thumbstick mirrors WASD movement. Enable Manual look to use a right thumbstick for camera pan/tilt.</p>
   </div>
 
   <aside id="sidebar">
     <label><input type="checkbox" id="spectateToggle"> Spectate mode</label><br />
     <label><input type="checkbox" id="muteToggle"> Mute microphone</label><br />
+    <label><input type="checkbox" id="lookToggle"> Manual look</label><br />
     <div id="micStatus">Mic: live</div>
     <div>
       <p>Viewpoint:</p>
@@ -159,6 +171,10 @@
     </div>
     <div id="status"></div>
   </aside>
+
+  <!-- Joystick containers positioned via CSS for touch navigation -->
+  <div id="moveJoystick"></div>
+  <div id="lookJoystick"></div>
 
   <!-- Main A-Frame scene. Removing 'embedded' allows full-screen rendering -->
   <!-- Disable the default loading screen so the environment appears even if the
@@ -210,6 +226,7 @@
 
   <!-- Client logic is loaded last once the DOM and libraries are ready -->
   <script src="js/mingle_client.js"></script>
+  <script src="js/mobile_controls.js"></script>
   <script src="js/webrtc.js"></script>
   <script src="js/ui_controls.js"></script>
   <script src="js/mingle_navbar.js"></script>

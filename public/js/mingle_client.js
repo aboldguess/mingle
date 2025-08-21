@@ -22,6 +22,9 @@ const avatar = document.getElementById('avatar');
 const avatarBack = document.getElementById('avatarBack');
 const player = document.getElementById('player');
 const playerCamera = document.getElementById('playerCamera');
+// Expose the primary camera globally so auxiliary modules (e.g. mobile
+// controls) can adjust its orientation directly when needed.
+window.playerCamera = playerCamera;
 const spectateCam = document.getElementById('spectateCam');
 const spectateMarker = document.getElementById('spectateMarker');
 const spectateToggle = document.getElementById('spectateToggle');
@@ -367,6 +370,9 @@ updateStatus();
 // manually. This avoids relying on A-Frame's wasd-controls which depend on the
 // currently active camera and caused erratic movement when spectating.
 const keys = { w: false, a: false, s: false, d: false };
+// Publish key state globally so other scripts (e.g. touch joystick handlers)
+// can mirror WASD input for mobile users.
+window.keys = keys;
 document.addEventListener('keydown', (e) => {
   const k = e.key.toLowerCase();
   if (k in keys) {
