@@ -7,7 +7,8 @@
  *   1. Initialise left thumbstick to mirror WASD movement keys.
  *   2. Toggleable right thumbstick for manual camera pan/tilt when device
  *      orientation is undesirable.
- *   3. Animation loop applying look deltas to the player camera.
+ *   3. Animation loop applying look deltas to the player camera and snapping
+ *      pitch back to level when the look joystick is released.
  * - Notes: Requires mingle_client.js to define global `keys` and `playerCamera`.
  */
 
@@ -43,8 +44,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const dead = 0.3; // ignore tiny movements
     const x = data.vector.x;
     const y = data.vector.y;
-    keys.w = y < -dead;
-    keys.s = y > dead;
+    // Invert vertical axis so pushing up moves forward
+    keys.w = y > dead;
+    keys.s = y < -dead;
     keys.a = x < -dead;
     keys.d = x > dead;
   });
@@ -99,6 +101,10 @@ document.addEventListener('DOMContentLoaded', () => {
     lookStick.on('end', () => {
       lookDelta.x = 0;
       lookDelta.y = 0;
+      // Snap pitch back to level when thumbstick released
+      if (playerCamera && playerCamera.object3D && playerCamera.object3D.rotation) {
+        playerCamera.object3D.rotation.x = 0;
+      }
     });
     if (typeof debugLog === 'function') {
       debugLog('Look joystick enabled');
