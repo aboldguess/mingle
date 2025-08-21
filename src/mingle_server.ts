@@ -1,11 +1,12 @@
 /**
  * mingle_server.ts
  * Mini README:
- * - Purpose: serve the Mingle client and synchronise avatars via Socket.io.
+ * - Purpose: serve the Mingle client, synchronise avatars via Socket.io and
+ *   expose a secure admin API for world configuration.
  * - Structure:
- *   1. Configuration flags (port, host, HTTPS, debug)
+ *   1. Configuration flags (port, host, HTTPS, debug, admin token)
  *   2. Server creation (HTTP/HTTPS)
- *   3. Static routes and config endpoint
+ *   3. Middleware, static routes and admin world config endpoints
  *   4. Socket.io events for position, participant count and WebRTC signalling
  *   5. Startup logging with LAN-friendly addresses and HTTP/HTTPS guidance
  * - Notes: set LISTEN_HOST=0.0.0.0 to allow LAN clients. Use --debug for verbose logs.
@@ -17,6 +18,11 @@ import https from 'https';
 import path from 'path';
 import os from 'os';
 import { Server } from 'socket.io';
+
+// Enable JSON parsing early so API endpoints can accept JSON bodies.
+// This middleware is registered before any routes.
+const app = express();
+app.use(express.json());
 
 // Port and host are configurable via environment variables. LISTEN_HOST is used
 // rather than HOST to avoid clashing with shells that define HOST by default
@@ -33,8 +39,9 @@ const CERT_PATH: string = process.env.SSL_CERT || path.join(__dirname, '../certs
 // When active, additional runtime information is printed to the console which
 // assists in diagnosing issues during development.
 const DEBUG: boolean = process.argv.includes('--debug');
-
-const app = express();
+// Optional admin token enables world configuration endpoints. Without this
+// token set the admin interface is disabled for security.
+const ADMIN_TOKEN: string | undefined = process.env.ADMIN_TOKEN;
 
 // Create either an HTTP or HTTPS server depending on configuration. When HTTPS
 // is enabled the provided certificate is loaded. Fail early if certificates are
@@ -67,6 +74,53 @@ app.get('/config.js', (_req, res) => {
   res.type('application/javascript');
   res.send(`window.MINGLE_DEBUG = ${DEBUG};`);
 });
+
+// In-memory world configuration. The admin page can fetch and update these
+// values via a small REST API guarded by a token header.
+interface WorldConfig {
+  worldName: string;
+  maxParticipants: number;
+  welcomeMessage: string;
+}
+const worldConfig: WorldConfig = {
+  worldName: 'Mingle World',
+  maxParticipants: 20,
+  welcomeMessage: 'Welcome to Mingle',
+};
+
+function verifyAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
+  if (!ADMIN_TOKEN) {
+    return res.status(503).send('Admin interface disabled');
+  }
+  const token = req.header('x-admin-token');
+  if (token !== ADMIN_TOKEN) {
+    return res.status(401).send('Unauthorized');
+  }
+  next();
+}
+
+if (ADMIN_TOKEN) {
+  app.get('/world-config', verifyAdmin, (_req, res) => {
+    res.json(worldConfig);
+  });
+
+  app.post('/world-config', verifyAdmin, (req, res) => {
+    const { worldName, maxParticipants, welcomeMessage } = req.body;
+    if (typeof worldName === 'string') {
+      worldConfig.worldName = worldName;
+    }
+    if (typeof maxParticipants === 'number') {
+      worldConfig.maxParticipants = maxParticipants;
+    }
+    if (typeof welcomeMessage === 'string') {
+      worldConfig.welcomeMessage = welcomeMessage;
+    }
+    console.log('World configuration updated:', worldConfig);
+    res.json({ status: 'ok' });
+  });
+} else {
+  console.warn('ADMIN_TOKEN not set; admin endpoints disabled');
+}
 
 interface PositionData {
   [key: string]: number;
