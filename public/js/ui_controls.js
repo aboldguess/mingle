@@ -24,7 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Display initial microphone state for clarity.
-  micStatus.textContent = 'Mic: live';
+  micStatus.textContent = '(live)';
 
   // Toggle the local audio track whenever the checkbox changes.
   muteToggle.addEventListener('change', () => {
@@ -47,7 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
       track.enabled = !muted;
     });
 
-    micStatus.textContent = muted ? 'Mic: muted' : 'Mic: live';
+    micStatus.textContent = muted ? '(muted)' : '(live)';
 
     if (typeof debugLog === 'function') {
       debugLog(`Microphone ${muted ? 'muted' : 'unmuted'}`);

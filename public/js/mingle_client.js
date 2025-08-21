@@ -8,7 +8,7 @@
  *      HTTPS warning)
  *   2. Debug logging helpers
  *   3. Instructions overlay toggle
- *   4. UI controls for spectating and fixed camera viewpoints
+ *   4. Spectating and fixed camera viewpoint logic (keyboard-driven)
  *   5. Custom WASD movement handler and real-time status including participant
  *      count
  *   6. Webcam and microphone capture and playback
@@ -305,7 +305,9 @@ function setSpectateMode(enabled) {
     }
     debugLog('Spectate mode disabled');
   }
-  spectateToggle.checked = spectating;
+  if (spectateToggle) {
+    spectateToggle.checked = spectating;
+  }
   updateStatus();
 }
 
@@ -334,6 +336,9 @@ function selectMode(mode) {
 }
 
 function updateStatus() {
+  if (!statusEl) {
+    return;
+  }
   if (!currentMode) {
     statusEl.textContent = `Mode: (initialising) | Users: ${connectedClients}`;
     return;
@@ -342,15 +347,17 @@ function updateStatus() {
   statusEl.textContent = `Mode: ${currentMode} | Camera: ${pos.x.toFixed(2)}, ${pos.y.toFixed(2)}, ${pos.z.toFixed(2)} | Users: ${connectedClients}`;
 }
 
-spectateToggle.addEventListener('change', () => {
-  if (currentMode === MODE_LAKITU) {
-    spectateToggle.checked = false; // spectating disabled in Lakitu mode
-    return;
-  }
-  setSpectateMode(spectateToggle.checked);
-  currentMode = spectating ? MODE_SPECTATOR : MODE_FPV;
-  updateStatus();
-});
+if (spectateToggle) {
+  spectateToggle.addEventListener('change', () => {
+    if (currentMode === MODE_LAKITU) {
+      spectateToggle.checked = false; // spectating disabled in Lakitu mode
+      return;
+    }
+    setSpectateMode(spectateToggle.checked);
+    currentMode = spectating ? MODE_SPECTATOR : MODE_FPV;
+    updateStatus();
+  });
+}
 viewpointRadios.forEach(radio => {
   radio.addEventListener('change', () => {
     if (radio.checked) {
