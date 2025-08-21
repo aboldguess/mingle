@@ -93,7 +93,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     lookStick.on('move', (evt, data) => {
       lookDelta.x = data.vector.x;
-      lookDelta.y = data.vector.y;
+      // Invert Y axis so upward drag makes the camera look up
+      lookDelta.y = -data.vector.y;
     });
     lookStick.on('end', () => {
       lookDelta.x = 0;
