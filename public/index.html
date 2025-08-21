@@ -6,7 +6,7 @@
   - Structure:
     1. Page styling and navigation bar
     2. On-screen usage instructions with minimise toggle
-    3. Camera control sidebar with real-time status
+    3. Options sidebar with microphone mute and manual look controls
     4. A-Frame scene setup with assets, cameras, avatar and spectate marker
        (local and remote avatars display webcam feeds via WebRTC)
     5. Client scripts for movement and navbar functionality
@@ -146,17 +146,8 @@
   </div>
 
   <aside id="sidebar">
-    <label><input type="checkbox" id="spectateToggle"> Spectate mode</label><br />
-    <label><input type="checkbox" id="muteToggle"> Mute microphone</label><br />
+    <label><input type="checkbox" id="muteToggle"> Mute microphone <span id="micStatus">(live)</span></label><br />
     <label><input type="checkbox" id="lookToggle"> Manual look</label><br />
-    <div id="micStatus">Mic: live</div>
-    <div>
-      <p>Viewpoint:</p>
-      <label><input type="radio" name="viewpoint" value="high" checked> High corner</label><br />
-      <label><input type="radio" name="viewpoint" value="ground"> Ground corner</label><br />
-      <label><input type="radio" name="viewpoint" value="top"> Top-down</label>
-    </div>
-    <div id="status"></div>
   </aside>
 
   <!-- Joystick containers positioned via CSS for touch navigation -->
