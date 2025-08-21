@@ -5,7 +5,7 @@
   - Purpose: renders the main 3D meeting interface and surrounding UI chrome.
   - Structure:
     1. Page styling and navigation bar
-    2. On-screen usage instructions
+    2. On-screen usage instructions with minimise toggle
     3. Camera control sidebar with real-time status
     4. A-Frame scene setup with assets, cameras, avatar and spectate marker
        (local and remote avatars display webcam feeds via WebRTC)
@@ -74,6 +74,17 @@
       padding: 10px;
       z-index: 100;
     }
+    #instructionsToggle {
+      position: absolute;
+      top: 60px;
+      left: 10px;
+      background: rgba(0,0,0,0.6);
+      color: #fff;
+      border: none;
+      padding: 2px 6px;
+      cursor: pointer;
+      z-index: 101;
+    }
     #sidebar {
       position: fixed;
       top: 60px;
@@ -126,6 +137,7 @@
       </ul>
     </div>
   </nav>
+  <button id="instructionsToggle" aria-label="Hide instructions">&minus;</button>
   <div id="instructions">
     <p>Use WASD to move and mouse to look. Click to lock pointer.</p>
     <p>Use the profile button in the top-right to access account options.</p>

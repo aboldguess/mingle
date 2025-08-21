@@ -7,13 +7,14 @@
  *   1. Socket and DOM initialisation (unique player colour, random spawn,
  *      HTTPS warning)
  *   2. Debug logging helpers
- *   3. UI controls for spectating and fixed camera viewpoints
- *   4. Custom WASD movement handler and real-time status including participant
+ *   3. Instructions overlay toggle
+ *   4. UI controls for spectating and fixed camera viewpoints
+ *   5. Custom WASD movement handler and real-time status including participant
  *      count
- *   5. Webcam and microphone capture and playback
- *   6. WebRTC audio/video sharing between participants
- *   7. Periodic server synchronisation
- *   8. Remote avatar and spectate marker tracking
+ *   6. Webcam and microphone capture and playback
+ *   7. WebRTC audio/video sharing between participants
+ *   8. Periodic server synchronisation
+ *   9. Remote avatar and spectate marker tracking
 */
 
 // Establish socket connection to the server and cache DOM references.
@@ -30,6 +31,20 @@ const spectateMarker = document.getElementById('spectateMarker');
 const spectateToggle = document.getElementById('spectateToggle');
 const statusEl = document.getElementById('status');
 const viewpointRadios = document.querySelectorAll('input[name="viewpoint"]');
+const instructionsEl = document.getElementById('instructions');
+const instructionsToggle = document.getElementById('instructionsToggle');
+// Allow the instructions overlay to be minimised and restored.
+if (instructionsEl && instructionsToggle) {
+  instructionsToggle.addEventListener('click', () => {
+    const hidden = instructionsEl.style.display === 'none';
+    instructionsEl.style.display = hidden ? 'block' : 'none';
+    instructionsToggle.textContent = hidden ? '\u2212' : '+'; // minus/plus symbol
+    instructionsToggle.setAttribute('aria-label', hidden ? 'Hide instructions' : 'Show instructions');
+    debugLog(`Instructions ${hidden ? 'shown' : 'hidden'}`);
+  });
+} else {
+  debugError('Instructions toggle elements missing');
+}
 // Track which camera is currently rendering the view for status display.
 let activeCamera = playerCamera;
 // Track participant count for on-screen diagnostics.
