@@ -493,7 +493,9 @@ socket.on('position', async data => {
     videoEl.id = `video-${data.id}`;
     videoEl.autoplay = true;
     videoEl.playsInline = true;
-    videoEl.muted = false; // allow remote audio playback; may require user gesture
+    // Mute video to satisfy mobile autoplay restrictions; remote audio is routed
+    // through a dedicated <audio> element for positional playback.
+    videoEl.muted = true;
     assetsEl.appendChild(videoEl);
 
     const front = document.createElement('a-plane');
