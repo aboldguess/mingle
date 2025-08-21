@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<!--
+  world_admin.html
+  Mini README:
+  - Purpose: provide a simple admin interface to view and update world settings.
+  - Structure:
+    1. Navbar reused across Mingle pages
+    2. Instructional form for admin token and world configuration values
+    3. Client-side script to load and save settings via the secure API
+  - Notes: requires the server to be started with ADMIN_TOKEN for access.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>World Administration - Mingle</title>
+  <style>
+    html, body { margin:0; font-family: Arial, sans-serif; }
+    nav {
+      position: fixed; top:0; left:0; right:0; height:50px;
+      background:#333; color:#fff; display:flex;
+      justify-content: space-between; align-items:center;
+      padding:0 10px; z-index:100;
+    }
+    nav a { color:#fff; text-decoration:none; font-weight:bold; }
+    .profile-menu { position:relative; }
+    .profile-button { width:40px; height:40px; border-radius:20px; cursor:pointer; }
+    .dropdown { position:absolute; right:0; top:50px; background:#fff; color:#333; list-style:none; padding:0; margin:0; border:1px solid #ccc; display:none; min-width:180px; }
+    .dropdown li a { display:block; padding:10px 15px; color:#333; }
+    .dropdown li a:hover { background:#f0f0f0; }
+    .dropdown.show { display:block; }
+    main { padding:70px 10px; }
+    label { display:block; margin-top:10px; }
+    input, textarea { width:100%; padding:8px; margin-top:5px; box-sizing:border-box; }
+    button { margin-top:15px; padding:10px 15px; }
+  </style>
+  <script src="/config.js"></script>
+</head>
+<body>
+  <nav>
+    <div><a href="/index.html">Mingle</a></div>
+    <div class="profile-menu">
+      <img src="https://via.placeholder.com/40" alt="Profile" id="profileButton" class="profile-button" />
+      <ul id="profileDropdown" class="dropdown">
+        <li><a href="manage_profiles.html">Manage Profiles</a></li>
+        <li><a href="learning_zone.html">Learning Zone</a></li>
+        <li><a href="my_details.html">My Details</a></li>
+        <li><a href="subscription_details.html">Subscription Details</a></li>
+        <li><a href="manage_users.html">Manage Users</a></li>
+        <li><a href="#" id="signOut">Sign out</a></li>
+      </ul>
+    </div>
+  </nav>
+  <main>
+    <h1>World Configuration</h1>
+    <p>Enter the admin token and adjust the values below to configure the shared world.</p>
+    <label for="token">Admin Token</label>
+    <input type="password" id="token" placeholder="Required" />
+    <label for="worldName">World Name</label>
+    <input type="text" id="worldName" placeholder="Mingle World" />
+    <label for="maxParticipants">Max Participants</label>
+    <input type="number" id="maxParticipants" min="1" value="20" />
+    <label for="welcomeMessage">Welcome Message</label>
+    <textarea id="welcomeMessage" rows="3" placeholder="Welcome to Mingle"></textarea>
+    <button id="loadBtn">Load Current Config</button>
+    <button id="saveBtn">Save Config</button>
+  </main>
+  <script src="js/mingle_navbar.js"></script>
+  <script src="js/world_admin.js"></script>
+</body>
+</html>

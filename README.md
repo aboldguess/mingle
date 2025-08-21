@@ -20,6 +20,7 @@ first-person avatar whose face displays a live webcam feed.
 - On-screen warning when not using HTTPS so webcams and sensors work over LAN
 - Live participant count displayed for quick diagnostics
 - Touch-friendly thumbsticks for movement with optional manual pan/tilt control on mobile devices
+- Secure admin page to configure world settings (requires `ADMIN_TOKEN`)
 
 ## Quick Start
 
@@ -51,6 +52,25 @@ npm start                            # run over HTTP and allow LAN clients
 # npm start
 # Optional: add --debug for verbose console logging
 # npm start -- --debug
+```
+
+### World Administration
+
+Set an admin token to enable the configuration interface.
+
+#### Linux / Raspberry Pi
+```bash
+ADMIN_TOKEN=changeme LISTEN_HOST=0.0.0.0 PORT=8080 npm start
+# then visit http://<host>:8080/world_admin.html and enter the token
+```
+
+#### Windows (PowerShell)
+```powershell
+$env:ADMIN_TOKEN="changeme"
+$env:LISTEN_HOST="0.0.0.0"
+$env:PORT=8080
+npm start
+# then browse to http://<host>:8080/world_admin.html and enter the token
 ```
 
 Once running, the server logs every accessible address, e.g.
