@@ -7,14 +7,14 @@
  *   1. Socket and DOM initialisation (unique player colour, random spawn,
  *      HTTPS warning)
  *   2. Debug logging helpers
- *   3. Start menu and UI controls for spectating and fixed camera viewpoints
+ *   3. UI controls for spectating and fixed camera viewpoints
  *   4. Custom WASD movement handler and real-time status including participant
  *      count
  *   5. Webcam and microphone capture and playback
  *   6. WebRTC audio/video sharing between participants
  *   7. Periodic server synchronisation
  *   8. Remote avatar and spectate marker tracking
- */
+*/
 
 // Establish socket connection to the server and cache DOM references.
 const socket = io();
@@ -30,8 +30,6 @@ const spectateMarker = document.getElementById('spectateMarker');
 const spectateToggle = document.getElementById('spectateToggle');
 const statusEl = document.getElementById('status');
 const viewpointRadios = document.querySelectorAll('input[name="viewpoint"]');
-const modeMenu = document.getElementById('modeMenu');
-const modeButtons = modeMenu ? modeMenu.querySelectorAll('button') : [];
 // Track which camera is currently rendering the view for status display.
 let activeCamera = playerCamera;
 // Track participant count for on-screen diagnostics.
@@ -102,20 +100,17 @@ if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
   debugLog('Insecure context detected; camera and sensors disabled until HTTPS is used.');
 }
 
-// Enumerate the entry modes selectable via the start menu.
+// Enumerate available viewing modes.
 const MODE_FPV = 'FPV';
 const MODE_SPECTATOR = 'Spectator';
 const MODE_LAKITU = 'Lakitu';
-let currentMode = null; // populated once the user chooses how to enter
+let currentMode = null; // populated once the initial mode is set
 
 // Assign a unique colour to this player used for the avatar's back and the
 // spectate marker. This colour is shared with other clients via socket updates.
 const playerColor = '#' + Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, '0');
 avatarBack.setAttribute('color', playerColor);
 spectateMarker.setAttribute('color', playerColor);
-
-// When the user picks a mode from the start menu, configure the scene.
-modeButtons.forEach(btn => btn.addEventListener('click', () => selectMode(btn.dataset.mode)));
 
 // Ensure spectator camera never responds to built-in WASD controls and pause its
 // look-controls so mouse movement never rotates it.
@@ -299,10 +294,9 @@ function setSpectateMode(enabled) {
   updateStatus();
 }
 
-// Entry point after the user selects how they wish to view the world.
+// Configure the scene based on the requested viewing mode.
 function selectMode(mode) {
   currentMode = mode === 'fpv' ? MODE_FPV : mode === 'spectator' ? MODE_SPECTATOR : MODE_LAKITU;
-  modeMenu.classList.add('hidden');
   debugLog('Mode selected', currentMode);
 
   // Reset player and camera positions to the centre of the world for a fresh start.
@@ -326,7 +320,7 @@ function selectMode(mode) {
 
 function updateStatus() {
   if (!currentMode) {
-    statusEl.textContent = `Mode: (select) | Users: ${connectedClients}`;
+    statusEl.textContent = `Mode: (initialising) | Users: ${connectedClients}`;
     return;
   }
   const pos = activeCamera.object3D.position;
@@ -361,7 +355,9 @@ document.addEventListener('keydown', (e) => {
     updateStatus();
   }
 });
-updateStatus();
+
+// Start directly in first-person mode.
+selectMode('fpv');
 
 // ---------------------------------------------------------------------------
 // Custom movement handling
@@ -398,11 +394,11 @@ function movementLoop(time) {
   const dt = (time - lastMove) / 1000;
   lastMove = time;
 
-  // Do nothing until the user has selected a mode.
-  if (!currentMode) {
-    requestAnimationFrame(movementLoop);
-    return;
-  }
+    // Defensive: wait for mode initialisation before processing movement.
+    if (!currentMode) {
+      requestAnimationFrame(movementLoop);
+      return;
+    }
 
   // Mirror the player camera's rotation on the avatar so it visually matches the
   // viewer's perspective. In Lakitu mode the avatar remains fixed and unrotated.

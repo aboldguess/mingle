@@ -5,7 +5,7 @@
   - Purpose: renders the main 3D meeting interface and surrounding UI chrome.
   - Structure:
     1. Page styling and navigation bar
-    2. Entry mode menu and on-screen usage instructions
+    2. On-screen usage instructions
     3. Camera control sidebar with real-time status
     4. A-Frame scene setup with assets, cameras, avatar and spectate marker
        (local and remote avatars display webcam feeds via WebRTC)
@@ -100,24 +100,6 @@
     }
     #moveJoystick { left: 0; bottom: 0; }
     #lookJoystick { right: 0; bottom: 0; display: none; }
-    /* Simple start menu allowing users to choose their entry mode */
-    #modeMenu {
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: rgba(255,255,255,0.95);
-      border: 1px solid #ccc;
-      padding: 20px;
-      z-index: 250;
-      text-align: center;
-    }
-    #modeMenu.hidden { display: none; }
-    #modeMenu button {
-      margin: 0 5px;
-      padding: 10px 15px;
-      cursor: pointer;
-    }
   </style>
   <!--
     Load A-Frame and supporting libraries *before* the scene so that all
@@ -144,15 +126,8 @@
       </ul>
     </div>
   </nav>
-  <!-- Initial mode selection menu displayed before entering the world -->
-  <div id="modeMenu">
-    <p>Select how to enter the world:</p>
-    <button data-mode="fpv">FPV mode</button>
-    <button data-mode="spectator">Spectator mode</button>
-    <button data-mode="lakitu">Lakitu mode</button>
-  </div>
   <div id="instructions">
-    <p>Choose a mode, then use WASD to move and mouse to look. Click to lock pointer.</p>
+    <p>Use WASD to move and mouse to look. Click to lock pointer.</p>
     <p>Use the profile button in the top-right to access account options.</p>
     <p>Allow microphone access when prompted so others can hear you. Use the mute control in the sidebar to silence yourself.</p>
     <p>On touch devices, a left thumbstick mirrors WASD movement. Enable Manual look to use a right thumbstick for camera pan/tilt.</p>
