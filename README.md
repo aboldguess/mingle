@@ -15,7 +15,7 @@ first-person avatar whose face displays a live webcam feed.
 - Optional HTTPS support for secure contexts (`USE_HTTPS=true`)
 - Verbose logs for easy debugging
 - Optional `--debug` flag to surface additional diagnostic information
-- Responsive navigation bar with profile menu linking to account management pages
+- Responsive navigation bar with profile menu linking to account management pages via in-page overlays
 - Randomised spawn positions so newcomers are immediately visible
 - On-screen warning when not using HTTPS so webcams and sensors work over LAN
 - Live participant count displayed for quick diagnostics
