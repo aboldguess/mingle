@@ -21,6 +21,7 @@ first-person avatar whose face displays a live webcam feed.
 - Live participant count displayed for quick diagnostics
 - Touch-friendly thumbsticks for movement with optional manual pan/tilt control on mobile devices
 - Secure admin page to configure world settings (requires `ADMIN_TOKEN`)
+- World design options (geometry and colour) configurable via the admin page
 
 ## Quick Start
 
@@ -56,7 +57,8 @@ npm start                            # run over HTTP and allow LAN clients
 
 ### World Administration
 
-Set an admin token to enable the configuration interface.
+Set an admin token to enable the configuration interface. Use the admin page to
+set the world name, maximum participants, welcome message, geometry and colour.
 
 #### Linux / Raspberry Pi
 ```bash
