@@ -3,8 +3,9 @@
  * Mini README:
  * - Purpose: client-side logic for the Mingle prototype. Handles local avatar
  *   movement, webcam streaming, and position synchronisation with the server.
- *   Avatars attempt to load `default-body.glb` and `default-tv.glb` from
- *   `/public/assets`. If absent, simple box primitives are used instead. The TV
+ *   Default body and TV models are loaded from the server's world configuration
+ *   and asset manifest. If none are configured, the client falls back to
+ *   `default-body.glb` / `default-tv.glb` or simple box primitives. The TV
  *   model (or box) exposes a mesh named `screen` for the webcam texture.
  * - Structure:
  *   1. Socket and DOM initialisation (unique player colour, random spawn,
@@ -148,59 +149,107 @@ spectateCam.setAttribute('wasd-controls', 'enabled', false);
 const sceneEl = document.querySelector('a-scene');
 const assetsEl = sceneEl.querySelector('a-assets');
 
-// Track availability of default GLB models so remote avatars can mirror the
-// local appearance.
-let defaultBodyAvailable = false;
-let defaultTVAvailable = false;
+// Details of the default body and TV models loaded from the server. These
+// determine the avatar appearance for local and remote participants.
+let defaultBodyEntry = null;
+let defaultTVEntry = null;
+// Stored offset for positioning the TV relative to the body.
+let tvOffset = { x: 0, y: 1.6, z: 0 };
 
 /**
- * Attempt to load default GLB assets from /public/assets. If present, add them
- * to the scene's asset registry and assign the models to the local avatar. If
- * absent, fall back to simple box primitives. Returns a promise resolving once
- * the setup completes.
+ * Fetch world configuration and asset manifest to determine which body and TV
+ * models to use. Falls back to static default files or simple primitives when
+ * none are configured. Applies saved scale and TV offset so avatars start with
+ * consistent placement.
  */
 async function initDefaultAssets() {
-  async function addAsset(id, url) {
+  try {
+    const [manifestRes, configRes] = await Promise.all([
+      fetch('/api/assets'),
+      fetch('/world-config'),
+    ]);
+    const manifest = await manifestRes.json();
+    const config = await configRes.json();
+    if (config.tvPosition) {
+      tvOffset = config.tvPosition;
+    }
+    if (config.defaultBodyId) {
+      defaultBodyEntry = manifest.bodies.find(b => b.id === config.defaultBodyId) || null;
+    }
+    if (config.defaultTvId) {
+      defaultTVEntry = manifest.tvs.find(t => t.id === config.defaultTvId) || null;
+    }
+  } catch (err) {
+    debugError('Failed to fetch asset manifest or world config', err);
+  }
+
+  // Load body model or fall back to a primitive
+  if (defaultBodyEntry) {
+    const bodyItem = document.createElement('a-asset-item');
+    bodyItem.id = 'default-body';
+    bodyItem.src = `/assets/${defaultBodyEntry.filename}`;
+    assetsEl.appendChild(bodyItem);
+    avatarBody.setAttribute('gltf-model', '#default-body');
+    avatarBody.setAttribute('scale', `${defaultBodyEntry.scale} ${defaultBodyEntry.scale} ${defaultBodyEntry.scale}`);
+  } else {
     try {
-      const res = await fetch(url, { method: 'HEAD' });
+      const res = await fetch('/assets/default-body.glb', { method: 'HEAD' });
       if (res.ok) {
-        const item = document.createElement('a-asset-item');
-        item.id = id;
-        item.src = url;
-        assetsEl.appendChild(item);
-        debugLog(`Found default asset: ${url}`);
-        return true;
+        defaultBodyEntry = { id: 'default-body', filename: 'default-body.glb', scale: 1 };
+        const bodyItem = document.createElement('a-asset-item');
+        bodyItem.id = 'default-body';
+        bodyItem.src = '/assets/default-body.glb';
+        assetsEl.appendChild(bodyItem);
+        avatarBody.setAttribute('gltf-model', '#default-body');
+      } else {
+        avatarBody.setAttribute('geometry', 'primitive: box; height: 1.6; width: 0.5; depth: 0.3');
+        avatarBody.setAttribute('material', 'color: #AAAAAA');
       }
-      debugLog(`Default asset not found: ${url}`);
-      return false;
-    } catch (err) {
-      debugError('Asset check failed', err);
-      return false;
+    } catch {
+      avatarBody.setAttribute('geometry', 'primitive: box; height: 1.6; width: 0.5; depth: 0.3');
+      avatarBody.setAttribute('material', 'color: #AAAAAA');
     }
   }
 
-  defaultBodyAvailable = await addAsset('default-body', '/assets/default-body.glb');
-  if (defaultBodyAvailable) {
-    avatarBody.setAttribute('gltf-model', '#default-body');
-  } else {
-    avatarBody.setAttribute('geometry', 'primitive: box; height: 1.6; width: 0.5; depth: 0.3');
-    avatarBody.setAttribute('material', 'color: #AAAAAA');
-  }
-
-  defaultTVAvailable = await addAsset('default-tv', '/assets/default-tv.glb');
+  // Load TV model or fall back to a primitive
   const videoEl = document.getElementById('localVideo');
-  if (defaultTVAvailable) {
+  avatarTV.setAttribute('position', `${tvOffset.x} ${tvOffset.y} ${tvOffset.z}`);
+  if (defaultTVEntry) {
+    const tvItem = document.createElement('a-asset-item');
+    tvItem.id = 'default-tv';
+    tvItem.src = `/assets/${defaultTVEntry.filename}`;
+    assetsEl.appendChild(tvItem);
     avatarTV.setAttribute('gltf-model', '#default-tv');
-    avatarTV.addEventListener('model-loaded', () => mapVideoToScreen(avatarTV, videoEl));
+    avatarTV.setAttribute('scale', `${defaultTVEntry.scale} ${defaultTVEntry.scale} ${defaultTVEntry.scale}`);
+    avatarTV.addEventListener('model-loaded', () => mapVideoToScreen(avatarTV, videoEl, defaultTVEntry.screen));
   } else {
-    avatarTV.setAttribute('geometry', 'primitive: box; height: 0.4; width: 0.6; depth: 0.5');
-    avatarTV.setAttribute('material', 'color: #222222');
-    // If the primitive is already initialised, apply the texture immediately;
-    // otherwise wait for its `loaded` event.
-    if (avatarTV.hasLoaded) {
-      mapVideoToScreen(avatarTV, videoEl);
-    } else {
-      avatarTV.addEventListener('loaded', () => mapVideoToScreen(avatarTV, videoEl));
+    try {
+      const res = await fetch('/assets/default-tv.glb', { method: 'HEAD' });
+      if (res.ok) {
+        defaultTVEntry = { id: 'default-tv', filename: 'default-tv.glb', scale: 1 };
+        const tvItem = document.createElement('a-asset-item');
+        tvItem.id = 'default-tv';
+        tvItem.src = '/assets/default-tv.glb';
+        assetsEl.appendChild(tvItem);
+        avatarTV.setAttribute('gltf-model', '#default-tv');
+        avatarTV.addEventListener('model-loaded', () => mapVideoToScreen(avatarTV, videoEl));
+      } else {
+        avatarTV.setAttribute('geometry', 'primitive: box; height: 0.4; width: 0.6; depth: 0.5');
+        avatarTV.setAttribute('material', 'color: #222222');
+        if (avatarTV.hasLoaded) {
+          mapVideoToScreen(avatarTV, videoEl);
+        } else {
+          avatarTV.addEventListener('loaded', () => mapVideoToScreen(avatarTV, videoEl));
+        }
+      }
+    } catch {
+      avatarTV.setAttribute('geometry', 'primitive: box; height: 0.4; width: 0.6; depth: 0.5');
+      avatarTV.setAttribute('material', 'color: #222222');
+      if (avatarTV.hasLoaded) {
+        mapVideoToScreen(avatarTV, videoEl);
+      } else {
+        avatarTV.addEventListener('loaded', () => mapVideoToScreen(avatarTV, videoEl));
+      }
     }
   }
 }
@@ -221,8 +270,9 @@ function debugError(...args) {
 }
 
 // Apply a VideoTexture to the `screen` mesh of the provided model. Falls back
-// to the model root if a dedicated mesh is not found.
-function mapVideoToScreen(modelEl, videoEl) {
+// to the model root if a dedicated mesh is not found. Optional `screen` UV
+// coordinates allow cropping to a subregion of the texture.
+function mapVideoToScreen(modelEl, videoEl, screen) {
   const mesh = modelEl.getObject3D('mesh');
   if (!mesh) {
     debugError('Model mesh missing for video texture');
@@ -231,6 +281,10 @@ function mapVideoToScreen(modelEl, videoEl) {
   const target = mesh.getObjectByName('screen') || mesh;
   const texture = new THREE.VideoTexture(videoEl);
   texture.encoding = THREE.sRGBEncoding;
+  if (screen) {
+    texture.offset.set(screen.x, 1 - screen.y - screen.height);
+    texture.repeat.set(screen.width, screen.height);
+  }
   target.traverse(node => {
     if (node.isMesh) {
       node.material = new THREE.MeshBasicMaterial({ map: texture });
@@ -599,8 +653,9 @@ socket.on('position', async data => {
     avatarEntity.id = `avatar-${data.id}`; // allow audio entities to attach for spatial sound
 
     const body = document.createElement('a-entity');
-    if (defaultBodyAvailable) {
+    if (defaultBodyEntry) {
       body.setAttribute('gltf-model', '#default-body');
+      body.setAttribute('scale', `${defaultBodyEntry.scale} ${defaultBodyEntry.scale} ${defaultBodyEntry.scale}`);
     } else {
       body.setAttribute('geometry', 'primitive: box; height: 1.6; width: 0.5; depth: 0.3');
       body.setAttribute('material', 'color: #AAAAAA');
@@ -616,9 +671,10 @@ socket.on('position', async data => {
     assetsEl.appendChild(videoEl);
 
     const tv = document.createElement('a-entity');
-    if (defaultTVAvailable) {
+    if (defaultTVEntry) {
       tv.setAttribute('gltf-model', '#default-tv');
-      tv.addEventListener('model-loaded', () => mapVideoToScreen(tv, videoEl));
+      tv.setAttribute('scale', `${defaultTVEntry.scale} ${defaultTVEntry.scale} ${defaultTVEntry.scale}`);
+      tv.addEventListener('model-loaded', () => mapVideoToScreen(tv, videoEl, defaultTVEntry.screen));
     } else {
       tv.setAttribute('geometry', 'primitive: box; height: 0.4; width: 0.6; depth: 0.5');
       tv.setAttribute('material', 'color: #222222');
@@ -628,8 +684,8 @@ socket.on('position', async data => {
         tv.addEventListener('loaded', () => mapVideoToScreen(tv, videoEl));
       }
     }
-    // Position the TV head so the screen (and FPV camera) sit at eye level.
-    tv.setAttribute('position', '0 1.6 0');
+    // Position the TV head so the screen (and FPV camera) sit at eye level or saved offset.
+    tv.setAttribute('position', `${tvOffset.x} ${tvOffset.y} ${tvOffset.z}`);
 
     avatarEntity.appendChild(body);
     avatarEntity.appendChild(tv);

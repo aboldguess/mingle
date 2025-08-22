@@ -6,7 +6,7 @@
  * - Structure:
  *   1. Configuration flags (port, host, HTTPS, debug, admin token)
  *   2. Server creation (HTTP/HTTPS)
- *   3. Middleware, static routes and admin world config endpoints
+ *   3. Middleware, static routes and world config endpoints (public GET, admin POST)
  *   4. Socket.io events for position, participant count and WebRTC signalling
  *   5. Asset upload and listing endpoints for avatar models
  *   6. Startup logging with LAN-friendly addresses and HTTP/HTTPS guidance
@@ -161,11 +161,14 @@ function verifyAdmin(req: express.Request, res: express.Response, next: express.
   next();
 }
 
-if (ADMIN_TOKEN) {
-  app.get('/world-config', verifyAdmin, (_req, res) => {
-    res.json(worldConfig);
-  });
+// Always expose the current world configuration so clients can align default
+// assets and TV placement without an admin token. Admin-only modifications are
+// guarded separately below.
+app.get('/world-config', (_req, res) => {
+  res.json(worldConfig);
+});
 
+if (ADMIN_TOKEN) {
   app.post('/world-config', verifyAdmin, (req, res) => {
     const { worldName, maxParticipants, welcomeMessage, worldGeometry, worldColor, defaultBodyId, defaultTvId, tvPosition } = req.body;
     if (typeof worldName === 'string') {
