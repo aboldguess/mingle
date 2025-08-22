@@ -148,7 +148,6 @@ async function uploadAsset(type) {
     return;
   }
   const form = new FormData();
-  form.append('type', type);
   let file = null;
   if (type === 'body') {
     file = bodyFileInput.files[0];
@@ -167,7 +166,7 @@ async function uploadAsset(type) {
   }
   form.append('model', file);
   try {
-    const res = await fetch('/api/assets', {
+    const res = await fetch(`/api/assets/${type}`, {
       method: 'POST',
       headers: { 'x-admin-token': token },
       body: form,
