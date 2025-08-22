@@ -66,6 +66,7 @@ const localStreamPromise = navigator.mediaDevices
   .then(stream => {
     localStream = stream;
     const videoEl = document.getElementById('localVideo');
+    const previewEl = document.getElementById('selfPreviewVideo');
 
     const audioTracks = stream.getAudioTracks();
     if (audioTracks.length > 0) {
@@ -74,10 +75,16 @@ const localStreamPromise = navigator.mediaDevices
       debugError('No audio tracks found in local stream');
     }
 
-    // Attach the stream to the video element. Muting allows autoplay which
-    // prevents the A-Frame loader from stalling waiting for the video.
-    videoEl.muted = true;
+    // Attach the stream to the asset video element and on-screen preview.
+    videoEl.muted = true; // ensure autoplay works without user interaction
     videoEl.srcObject = stream;
+    if (previewEl) {
+      previewEl.muted = true;
+      previewEl.srcObject = stream;
+      previewEl.play().catch(err => debugError('Preview playback failed', err));
+    } else {
+      debugError('Self-preview video element missing');
+    }
     videoEl.onloadeddata = () => {
       debugLog('Webcam video element loaded');
       // The scene is already visible because the default loading screen is
