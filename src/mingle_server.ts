@@ -87,6 +87,9 @@ interface WorldConfig {
   welcomeMessage: string;
   worldGeometry: string;
   worldColor: string;
+  defaultBodyId?: string;
+  defaultTvId?: string;
+  tvPosition?: { x: number; y: number; z: number };
 }
 const worldConfig: WorldConfig = {
   worldName: 'Mingle World',
@@ -94,6 +97,9 @@ const worldConfig: WorldConfig = {
   welcomeMessage: 'Welcome to Mingle',
   worldGeometry: 'plane',
   worldColor: '#00aaff',
+  defaultBodyId: undefined,
+  defaultTvId: undefined,
+  tvPosition: { x: 0, y: 0, z: 0 },
 };
 
 // Avatar asset storage lives under /public/assets. Metadata about uploaded
@@ -161,7 +167,7 @@ if (ADMIN_TOKEN) {
   });
 
   app.post('/world-config', verifyAdmin, (req, res) => {
-    const { worldName, maxParticipants, welcomeMessage, worldGeometry, worldColor } = req.body;
+    const { worldName, maxParticipants, welcomeMessage, worldGeometry, worldColor, defaultBodyId, defaultTvId, tvPosition } = req.body;
     if (typeof worldName === 'string') {
       worldConfig.worldName = worldName;
     }
@@ -177,6 +183,20 @@ if (ADMIN_TOKEN) {
     }
     if (typeof worldColor === 'string' && /^#[0-9a-fA-F]{6}$/.test(worldColor)) {
       worldConfig.worldColor = worldColor;
+    }
+    if (typeof defaultBodyId === 'string') {
+      worldConfig.defaultBodyId = defaultBodyId;
+    }
+    if (typeof defaultTvId === 'string') {
+      worldConfig.defaultTvId = defaultTvId;
+    }
+    if (tvPosition && typeof tvPosition === 'object') {
+      const { x, y, z } = tvPosition;
+      worldConfig.tvPosition = {
+        x: typeof x === 'number' ? x : worldConfig.tvPosition?.x || 0,
+        y: typeof y === 'number' ? y : worldConfig.tvPosition?.y || 0,
+        z: typeof z === 'number' ? z : worldConfig.tvPosition?.z || 0,
+      };
     }
     console.log('World configuration updated:', worldConfig);
     res.json({ status: 'ok' });
@@ -211,6 +231,37 @@ if (ADMIN_TOKEN) {
     } catch (err) {
       console.error('Failed to save manifest', err);
       res.status(500).send('Manifest write failed');
+    }
+  });
+
+  app.put('/api/assets/:type/:id', verifyAdmin, (req, res) => {
+    const { type, id } = req.params as { type: 'body' | 'tv'; id: string };
+    const { scale, screen } = req.body;
+    const manifest = readManifest();
+    const list = type === 'tv' ? manifest.tvs : manifest.bodies;
+    const item = list.find((e) => e.id === id);
+    if (!item) {
+      return res.status(404).send('Asset not found');
+    }
+    if (typeof scale === 'number') {
+      item.scale = scale;
+    }
+    if (type === 'tv' && screen) {
+      const { x, y, width, height } = screen;
+      item.screen = {
+        x: typeof x === 'number' ? x : item.screen?.x || 0,
+        y: typeof y === 'number' ? y : item.screen?.y || 0,
+        width: typeof width === 'number' ? width : item.screen?.width || 1,
+        height: typeof height === 'number' ? height : item.screen?.height || 1,
+      };
+    }
+    try {
+      writeManifest(manifest);
+      console.log('Asset updated:', id);
+      res.json({ status: 'ok', asset: item });
+    } catch (err) {
+      console.error('Failed to update asset', err);
+      res.status(500).send('Update failed');
     }
   });
 } else {

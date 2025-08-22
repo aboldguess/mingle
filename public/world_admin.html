@@ -9,7 +9,8 @@
     2. Instructional form for admin token and world configuration values
     3. Fields for world design (geometry and colour)
     4. Avatar asset uploads for body and TV models with scale/UV metadata
-    5. Client-side script to load and save settings via the secure API
+    5. Uploaded asset listing with thumbnails and preview configuration
+    6. Client-side script to load and save settings via the secure API
   - Notes: requires the server to be started with ADMIN_TOKEN for access.
 -->
 <html lang="en">
@@ -88,7 +89,7 @@
       <button id="uploadBodyBtn">Upload Body</button>
     </section>
 
-    <section id="tvAsset">
+      <section id="tvAsset">
       <h3>TV Model</h3>
       <label for="tvFile">TV GLB</label>
       <input type="file" id="tvFile" accept=".glb" />
@@ -106,10 +107,32 @@
         <input type="number" id="screenH" step="0.01" min="0" max="1" value="1" />
         <canvas id="screenPreview" width="200" height="200" style="border:1px solid #ccc; display:block; margin-top:10px;"></canvas>
       </fieldset>
-      <button id="uploadTVBtn">Upload TV</button>
-    </section>
-  </main>
-  <script src="js/mingle_navbar.js"></script>
-  <script src="js/world_admin.js"></script>
-</body>
+        <button id="uploadTVBtn">Upload TV</button>
+      </section>
+
+      <h2>Uploaded Assets</h2>
+      <p>Select a body and TV to preview their alignment. Thumbnails use your uploaded models.</p>
+      <div id="assetLists" style="display:flex; gap:20px; flex-wrap:wrap;"></div>
+
+      <section id="previewSection" style="margin-top:20px;">
+        <h3>Body / TV Preview</h3>
+        <div style="display:flex; flex-direction:column; align-items:flex-start;">
+          <canvas id="previewCanvas" width="400" height="400" style="border:1px solid #ccc;"></canvas>
+          <div style="margin-top:10px;">
+            <label>Body Scale <input type="range" id="bodyScaleRange" min="0.1" max="5" step="0.1" value="1"></label>
+            <label>TV Scale <input type="range" id="tvScaleRange" min="0.1" max="5" step="0.1" value="1"></label>
+            <label>TV X <input type="range" id="tvPosX" min="-2" max="2" step="0.01" value="0"></label>
+            <label>TV Y <input type="range" id="tvPosY" min="-2" max="2" step="0.01" value="0"></label>
+            <label>TV Z <input type="range" id="tvPosZ" min="-2" max="2" step="0.01" value="0"></label>
+            <button id="savePlacementBtn">Save Selection & Placement</button>
+          </div>
+        </div>
+      </section>
+    </main>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@google/model-viewer/dist/model-viewer.min.js"></script>
+    <script src="js/mingle_navbar.js"></script>
+    <script src="js/world_admin.js"></script>
+  </body>
 </html>
