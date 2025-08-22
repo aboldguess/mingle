@@ -133,7 +133,41 @@ function readManifest(): AssetManifest {
   try {
     return JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as AssetManifest;
   } catch {
-    return { bodies: [], tvs: [] };
+    // If the manifest is missing or corrupt, rebuild it by scanning the
+    // existing asset folders. This allows administrators to drop `.glb` files
+    // into the directories manually and still have them appear in the admin UI
+    // without a prior upload. Each discovered file is assigned a deterministic
+    // ID based on its filename so repeat scans remain stable.
+    const manifest: AssetManifest = { bodies: [], tvs: [] };
+
+    const scan = (dir: string, subdir: 'bodies' | 'tvs') => {
+      if (!fs.existsSync(dir)) return;
+      for (const file of fs.readdirSync(dir)) {
+        if (file.toLowerCase().endsWith('.glb')) {
+          const stats = fs.statSync(path.join(dir, file));
+          const entry: AssetEntry = {
+            id: file, // filenames are unique within their folders
+            filename: path.posix.join(subdir, file),
+            scale: 1,
+            size: stats.size,
+            uploaded: stats.mtimeMs,
+          };
+          if (subdir === 'bodies') {
+            manifest.bodies.push(entry);
+          } else {
+            manifest.tvs.push(entry);
+          }
+        }
+      }
+    };
+    scan(bodyAssetsDir, 'bodies');
+    scan(tvAssetsDir, 'tvs');
+    try {
+      writeManifest(manifest);
+    } catch (err) {
+      console.warn('Failed to generate asset manifest', err);
+    }
+    return manifest;
   }
 }
 
