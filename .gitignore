@@ -7,4 +7,7 @@ dist/
 # Ignore binary GLB assets which are uploaded at runtime rather than tracked
 # in version control.
 public/assets/*.glb
+# Ignore binary GLB assets which are uploaded at runtime rather than tracked
+# in version control.
+public/assets/*.glb
 public/assets/asset-manifest.json
