@@ -120,6 +120,8 @@ interface AssetEntry {
   id: string;
   filename: string;
   scale: number;
+  size?: number; // file size in bytes
+  uploaded?: number; // unix epoch ms when uploaded
   screen?: { x: number; y: number; width: number; height: number };
 }
 interface AssetManifest {
@@ -240,6 +242,8 @@ if (ADMIN_TOKEN) {
       id: Date.now().toString(),
       filename: path.posix.join(subdir, req.file.filename),
       scale: parseFloat(scale) || 1,
+      size: req.file.size,
+      uploaded: Date.now(),
     };
     if (type === 'tv') {
       entry.screen = {
