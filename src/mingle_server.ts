@@ -104,10 +104,14 @@ const worldConfig: WorldConfig = {
 
 // Avatar asset storage lives under /public/assets. Metadata about uploaded
 // models is persisted in asset-manifest.json so clients can discover available
-// bodies and TV heads.
+// bodies and TV heads. Uploaded body and TV models are now stored in dedicated
+// subdirectories to keep binary assets organised.
 const assetsDir = path.join(__dirname, '../public/assets');
+const bodyAssetsDir = path.join(assetsDir, 'bodies');
+const tvAssetsDir = path.join(assetsDir, 'tvs');
 const manifestPath = path.join(assetsDir, 'asset-manifest.json');
-fs.mkdirSync(assetsDir, { recursive: true });
+fs.mkdirSync(bodyAssetsDir, { recursive: true });
+fs.mkdirSync(tvAssetsDir, { recursive: true });
 
 interface AssetEntry {
   id: string;
@@ -132,9 +136,15 @@ function writeManifest(manifest: AssetManifest) {
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
 }
 
+// Multer storage chooses the destination directory based on the asset type
+// encoded in the request path. Filenames are sanitised to avoid directory
+// traversal and ensure consistent URLs in the manifest.
 const upload = multer({
   storage: multer.diskStorage({
-    destination: (_req, _file, cb) => cb(null, assetsDir),
+    destination: (req, _file, cb) => {
+      const dest = (req.params as { type?: string }).type === 'tv' ? tvAssetsDir : bodyAssetsDir;
+      cb(null, dest);
+    },
     filename: (_req, file, cb) => {
       const safe = Date.now() + '-' + file.originalname.replace(/[^a-z0-9.-]/gi, '_');
       cb(null, safe);
@@ -205,15 +215,17 @@ if (ADMIN_TOKEN) {
     res.json({ status: 'ok' });
   });
 
-  app.post('/api/assets', verifyAdmin, upload.single('model'), (req, res) => {
-    const { type, scale, screenX, screenY, screenW, screenH } = req.body;
+  app.post('/api/assets/:type', verifyAdmin, upload.single('model'), (req, res) => {
+    const { type } = req.params as { type: 'body' | 'tv' };
+    const { scale, screenX, screenY, screenW, screenH } = req.body;
     if (!req.file || (type !== 'body' && type !== 'tv')) {
       return res.status(400).send('Invalid upload');
     }
     const manifest = readManifest();
+    const subdir = type === 'tv' ? 'tvs' : 'bodies';
     const entry: AssetEntry = {
       id: Date.now().toString(),
-      filename: req.file.filename,
+      filename: path.posix.join(subdir, req.file.filename),
       scale: parseFloat(scale) || 1,
     };
     if (type === 'tv') {
