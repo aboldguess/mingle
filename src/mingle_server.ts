@@ -176,8 +176,38 @@ function readManifest(): AssetManifest {
     }
   };
 
+  // Discover models placed directly under the root assets directory.
+  // This allows dropping default-body.glb or default-tv.glb alongside the
+  // subdirectories without requiring a separate upload step.
+  const rootFiles = fs.existsSync(assetsDir) ? fs.readdirSync(assetsDir) : [];
+  for (const file of rootFiles) {
+    const full = path.join(assetsDir, file);
+    if (fs.statSync(full).isDirectory() || !file.toLowerCase().endsWith('.glb')) continue;
+    const stats = fs.statSync(full);
+    const rel = file;
+    const isTV = file.toLowerCase().includes('tv');
+    const list = isTV ? manifest.tvs : manifest.bodies;
+    if (!list.find(e => e.filename === rel)) {
+      list.push({ id: file, filename: rel, scale: 1, size: stats.size, uploaded: stats.mtimeMs });
+      changed = true;
+    }
+  }
+
+  const removeMissingRoot = (list: AssetEntry[]) => {
+    for (let i = list.length - 1; i >= 0; i--) {
+      if (list[i].filename.includes('/')) continue; // handled by syncDir
+      const f = path.join(assetsDir, list[i].filename);
+      if (!fs.existsSync(f)) {
+        list.splice(i, 1);
+        changed = true;
+      }
+    }
+  };
+
   syncDir(bodyAssetsDir, 'bodies', manifest.bodies);
   syncDir(tvAssetsDir, 'tvs', manifest.tvs);
+  removeMissingRoot(manifest.bodies);
+  removeMissingRoot(manifest.tvs);
   if (changed) {
     try {
       writeManifest(manifest);

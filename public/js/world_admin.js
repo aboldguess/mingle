@@ -18,7 +18,7 @@ function adminDebugLog(...args) {
     console.log(...args);
   }
 }
-
+document.addEventListener('DOMContentLoaded', () => {
 const tokenInput = document.getElementById('token');
 const worldNameInput = document.getElementById('worldName');
 const maxParticipantsInput = document.getElementById('maxParticipants');
@@ -460,3 +460,4 @@ async function savePlacement() {
   }
 }
 if (savePlacementBtn) savePlacementBtn.addEventListener('click', savePlacement);
+});
