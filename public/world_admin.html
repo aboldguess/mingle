@@ -8,9 +8,9 @@
     1. Navbar reused across Mingle pages
     2. Instructional form for admin token and world configuration values
     3. Fields for world design (geometry and colour)
-    4. Avatar asset uploads for body and TV models with scale/UV metadata
-    5. Uploaded asset listing with thumbnails and preview configuration
-    6. Client-side script to load and save settings via the secure API
+    4. Avatar asset management: body and TV lists with upload/delete controls
+       plus a Three.js preview to align the TV and webcam canvas
+    5. Client-side script to load and save settings via the secure API
   - Notes: requires the server to be started with ADMIN_TOKEN for access.
 -->
 <html lang="en">
@@ -78,56 +78,44 @@
     <button id="saveBtn">Save Config</button>
 
     <h2>Avatar Assets</h2>
-    <p>Upload GLB models for the default avatar body and TV. UV values range from 0 to 1.</p>
-
-    <section id="bodyAsset">
-      <h3>Body Model</h3>
-      <label for="bodyFile">Body GLB</label>
-      <input type="file" id="bodyFile" accept=".glb" />
-      <label for="bodyScale">Body Scale</label>
-      <input type="number" id="bodyScale" step="0.1" value="1" />
-      <button id="uploadBodyBtn">Upload Body</button>
-    </section>
-
-      <section id="tvAsset">
-      <h3>TV Model</h3>
-      <label for="tvFile">TV GLB</label>
-      <input type="file" id="tvFile" accept=".glb" />
-      <label for="tvScale">TV Scale</label>
-      <input type="number" id="tvScale" step="0.1" value="1" />
-      <fieldset>
-        <legend>Screen UV Region</legend>
-        <label for="screenX">X</label>
-        <input type="number" id="screenX" step="0.01" min="0" max="1" value="0" />
-        <label for="screenY">Y</label>
-        <input type="number" id="screenY" step="0.01" min="0" max="1" value="0" />
-        <label for="screenW">Width</label>
-        <input type="number" id="screenW" step="0.01" min="0" max="1" value="1" />
-        <label for="screenH">Height</label>
-        <input type="number" id="screenH" step="0.01" min="0" max="1" value="1" />
-        <canvas id="screenPreview" width="200" height="200" style="border:1px solid #ccc; display:block; margin-top:10px;"></canvas>
-      </fieldset>
-        <button id="uploadTVBtn">Upload TV</button>
-      </section>
-
-      <h2>Uploaded Assets</h2>
-      <p>Select a body and TV to preview their alignment. Thumbnails use your uploaded models.</p>
-      <div id="assetLists" style="display:flex; gap:20px; flex-wrap:wrap;"></div>
-
-      <section id="previewSection" style="margin-top:20px;">
-        <h3>Body / TV Preview</h3>
-        <div style="display:flex; flex-direction:column; align-items:flex-start;">
-          <canvas id="previewCanvas" width="400" height="400" style="border:1px solid #ccc;"></canvas>
-          <div style="margin-top:10px;">
-            <label>Body Scale <input type="range" id="bodyScaleRange" min="0.1" max="5" step="0.1" value="1"></label>
-            <label>TV Scale <input type="range" id="tvScaleRange" min="0.1" max="5" step="0.1" value="1"></label>
+    <p>Select models, preview placement and adjust the webcam canvas. Admin token is required for uploads or deletions.</p>
+    <div id="avatarAssets" style="display:flex; gap:20px;">
+      <div id="bodyColumn" style="flex:1;">
+        <h3>Bodies</h3>
+        <div id="bodyList"></div>
+        <div style="margin-top:10px;">
+          <input type="file" id="bodyFile" accept=".glb" />
+          <button id="uploadBodyBtn">Upload New Body</button>
+        </div>
+      </div>
+      <div id="tvColumn" style="flex:1;">
+        <h3>TVs</h3>
+        <div id="tvList"></div>
+        <div style="margin-top:10px;">
+          <input type="file" id="tvFile" accept=".glb" />
+          <button id="uploadTVBtn">Upload New TV</button>
+        </div>
+      </div>
+      <div id="previewColumn" style="flex:1;">
+        <h3>Preview & Placement</h3>
+        <canvas id="previewCanvas" width="400" height="400" style="border:1px solid #ccc;"></canvas>
+        <div id="sliderColumns" style="display:flex; gap:10px; margin-top:10px;">
+          <div>
             <label>TV X <input type="range" id="tvPosX" min="-2" max="2" step="0.01" value="0"></label>
-            <label>TV Y <input type="range" id="tvPosY" min="-2" max="2" step="0.01" value="0"></label>
+            <label>TV Y <input type="range" id="tvPosY" min="-2" max="2" step="0.01" value="1"></label>
             <label>TV Z <input type="range" id="tvPosZ" min="-2" max="2" step="0.01" value="0"></label>
-            <button id="savePlacementBtn">Save Selection & Placement</button>
+            <label>TV Scale <input type="range" id="tvScaleRange" min="0.1" max="5" step="0.1" value="1"></label>
+          </div>
+          <div>
+            <label>Cam X <input type="range" id="camPosX" min="-1" max="1" step="0.01" value="0"></label>
+            <label>Cam Y <input type="range" id="camPosY" min="-1" max="1" step="0.01" value="0"></label>
+            <label>Cam Z <input type="range" id="camPosZ" min="-1" max="1" step="0.01" value="0.2"></label>
+            <label>Cam Scale <input type="range" id="camScaleRange" min="0.1" max="5" step="0.1" value="1"></label>
           </div>
         </div>
-      </section>
+        <button id="savePlacementBtn" style="margin-top:10px;">Save and Update User Avatars</button>
+      </div>
+    </div>
     </main>
     <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/js/loaders/GLTFLoader.js"></script>
