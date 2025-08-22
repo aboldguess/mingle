@@ -8,9 +8,9 @@
  *   2. Load existing config when requested
  *   3. Submit updates back to the server
  *   4. Handle world design (geometry and colour) fields
- *   5. Upload body and TV models with scale and screen-region preview
- *   6. List uploaded assets with thumbnails
- *   7. Three.js preview for body/TV alignment and saving placement
+ *   5. Upload body and TV models
+ *   6. List uploaded assets with metadata, selection radios and delete controls
+ *   7. Three.js preview for aligning TV and webcam canvas before saving
  * - Notes: requires the admin token set on the server. Token is provided via the form.
 */
 function adminDebugLog(...args) {
@@ -48,12 +48,15 @@ async function loadConfig() {
       tvPosY.value = String(data.tvPosition.y);
       tvPosZ.value = String(data.tvPosition.z);
     }
+    if (data.webcamOffset) {
+      camPosX.value = String(data.webcamOffset.x);
+      camPosY.value = String(data.webcamOffset.y);
+      camPosZ.value = String(data.webcamOffset.z);
+      camScaleRange.value = String(data.webcamOffset.scale);
+    }
     if (currentManifest) {
       selectedBody = currentManifest.bodies.find(b => b.id === data.defaultBodyId) || null;
       selectedTV = currentManifest.tvs.find(t => t.id === data.defaultTvId) || null;
-      if (selectedBody) {
-        bodyScaleRange.value = String(selectedBody.scale);
-      }
       if (selectedTV) {
         tvScaleRange.value = String(selectedTV.scale);
       }
@@ -102,117 +105,35 @@ async function saveConfig() {
 document.getElementById('saveBtn').addEventListener('click', saveConfig);
 
 // ---------------------------------------------------------------------------
-// Avatar asset uploads
+// Avatar asset uploads and preview management
 // ---------------------------------------------------------------------------
 const bodyFileInput = document.getElementById('bodyFile');
-const bodyScaleInput = document.getElementById('bodyScale');
 const uploadBodyBtn = document.getElementById('uploadBodyBtn');
 const tvFileInput = document.getElementById('tvFile');
-const tvScaleInput = document.getElementById('tvScale');
-const screenXInput = document.getElementById('screenX');
-const screenYInput = document.getElementById('screenY');
-const screenWInput = document.getElementById('screenW');
-const screenHInput = document.getElementById('screenH');
-const screenPreview = document.getElementById('screenPreview');
 const uploadTVBtn = document.getElementById('uploadTVBtn');
-
-function drawPreview() {
-  if (!screenPreview || !screenPreview.getContext) {
-    return;
-  }
-  const ctx = screenPreview.getContext('2d');
-  const w = screenPreview.width;
-  const h = screenPreview.height;
-  ctx.clearRect(0, 0, w, h);
-  ctx.strokeStyle = '#ccc';
-  ctx.strokeRect(0, 0, w, h);
-  const x = Number(screenXInput.value) || 0;
-  const y = Number(screenYInput.value) || 0;
-  const rw = Number(screenWInput.value) || 1;
-  const rh = Number(screenHInput.value) || 1;
-  ctx.fillStyle = 'rgba(0,150,255,0.3)';
-  ctx.fillRect(x * w, (1 - y - rh) * h, rw * w, rh * h);
-}
-
-[screenXInput, screenYInput, screenWInput, screenHInput].forEach(input => {
-  if (input) {
-    input.addEventListener('input', drawPreview);
-  }
-});
-drawPreview();
-
-async function uploadAsset(type) {
-  const token = tokenInput.value.trim();
-  if (!token) {
-    alert('Enter admin token');
-    return;
-  }
-  const form = new FormData();
-  let file = null;
-  if (type === 'body') {
-    file = bodyFileInput.files[0];
-    form.append('scale', bodyScaleInput.value || '1');
-  } else {
-    file = tvFileInput.files[0];
-    form.append('scale', tvScaleInput.value || '1');
-    form.append('screenX', screenXInput.value || '0');
-    form.append('screenY', screenYInput.value || '0');
-    form.append('screenW', screenWInput.value || '1');
-    form.append('screenH', screenHInput.value || '1');
-  }
-  if (!file) {
-    alert('Select a .glb file');
-    return;
-  }
-  form.append('model', file);
-  try {
-    const res = await fetch(`/api/assets/${type}`, {
-      method: 'POST',
-      headers: { 'x-admin-token': token },
-      body: form,
-    });
-    if (!res.ok) throw new Error('Upload failed');
-    const data = await res.json();
-    adminDebugLog('Uploaded asset', data);
-    alert('Asset uploaded');
-    // Immediately refresh the asset lists so new uploads appear without a page reload
-    await loadAssetsAndConfig();
-  } catch (err) {
-    console.error(err);
-    alert('Upload failed');
-  }
-}
-
-if (uploadBodyBtn) {
-  uploadBodyBtn.addEventListener('click', () => uploadAsset('body'));
-}
-if (uploadTVBtn) {
-  uploadTVBtn.addEventListener('click', () => uploadAsset('tv'));
-}
-
-// ---------------------------------------------------------------------------
-// Asset listing and preview placement
-// ---------------------------------------------------------------------------
-const assetLists = document.getElementById('assetLists');
+const bodyList = document.getElementById('bodyList');
+const tvList = document.getElementById('tvList');
 const previewCanvas = document.getElementById('previewCanvas');
-const bodyScaleRange = document.getElementById('bodyScaleRange');
 const tvScaleRange = document.getElementById('tvScaleRange');
 const tvPosX = document.getElementById('tvPosX');
 const tvPosY = document.getElementById('tvPosY');
 const tvPosZ = document.getElementById('tvPosZ');
+const camPosX = document.getElementById('camPosX');
+const camPosY = document.getElementById('camPosY');
+const camPosZ = document.getElementById('camPosZ');
+const camScaleRange = document.getElementById('camScaleRange');
 const savePlacementBtn = document.getElementById('savePlacementBtn');
 
-// Manifest of uploaded assets, populated when assets are loaded so the config
-// loader can match saved IDs to actual files.
 let currentManifest = null;
-
 let selectedBody = null;
 let selectedTV = null;
 let bodyMesh = null;
+let tvGroup = null;
 let tvMesh = null;
+let camPlane = null;
 let videoTexture = null;
 
-// Three.js renderer setup
+// Three.js renderer setup for the preview pane
 let renderer = null;
 let scene = null;
 let camera = null;
@@ -249,106 +170,202 @@ async function ensureVideoTexture() {
   }
 }
 
+function clearScene() {
+  if (bodyMesh) scene.remove(bodyMesh);
+  if (tvGroup) scene.remove(tvGroup);
+  bodyMesh = null;
+  tvGroup = null;
+  tvMesh = null;
+  camPlane = null;
+}
+
 function updatePreview() {
   if (!selectedBody || !selectedTV || !loader) return;
-  if (bodyMesh) scene.remove(bodyMesh);
-  if (tvMesh) scene.remove(tvMesh);
+  clearScene();
   loader.load(`/assets/${selectedBody.filename}`, (g) => {
     bodyMesh = g.scene;
-    bodyMesh.scale.setScalar(parseFloat(bodyScaleRange.value));
+    bodyMesh.scale.setScalar(selectedBody.scale);
     scene.add(bodyMesh);
   });
   loader.load(`/assets/${selectedTV.filename}`, async (g) => {
     tvMesh = g.scene;
-    tvMesh.scale.setScalar(parseFloat(tvScaleRange.value));
-    tvMesh.position.set(parseFloat(tvPosX.value), parseFloat(tvPosY.value), parseFloat(tvPosZ.value));
-    scene.add(tvMesh);
+    tvGroup = new THREE.Group();
+    tvGroup.add(tvMesh);
+    tvGroup.position.set(parseFloat(tvPosX.value), parseFloat(tvPosY.value), parseFloat(tvPosZ.value));
+    tvGroup.scale.setScalar(parseFloat(tvScaleRange.value));
+    scene.add(tvGroup);
     const tex = await ensureVideoTexture();
     if (tex) {
       tex.needsUpdate = true;
-      if (selectedTV.screen) {
-        tex.offset.set(selectedTV.screen.x, 1 - selectedTV.screen.y - selectedTV.screen.height);
-        tex.repeat.set(selectedTV.screen.width, selectedTV.screen.height);
-      }
-      tvMesh.traverse((child) => {
-        if (child.isMesh) {
-          child.material = new THREE.MeshBasicMaterial({ map: tex });
-        }
-      });
+      const planeGeom = new THREE.PlaneGeometry(1, 1);
+      const planeMat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide });
+      camPlane = new THREE.Mesh(planeGeom, planeMat);
+      camPlane.position.set(parseFloat(camPosX.value), parseFloat(camPosY.value), parseFloat(camPosZ.value));
+      camPlane.scale.setScalar(parseFloat(camScaleRange.value));
+      tvGroup.add(camPlane);
     }
   });
 }
 
-function renderAssetLists(manifest) {
-  if (!assetLists) return;
-  assetLists.innerHTML = '';
-  const bodiesDiv = document.createElement('div');
-  bodiesDiv.innerHTML = '<h4>Bodies</h4>';
+async function uploadAsset(type) {
+  const token = tokenInput.value.trim();
+  if (!token) {
+    alert('Enter admin token');
+    return;
+  }
+  const form = new FormData();
+  const file = type === 'body' ? bodyFileInput.files[0] : tvFileInput.files[0];
+  if (!file) {
+    alert('Select a .glb file');
+    return;
+  }
+  form.append('model', file);
+  form.append('scale', '1');
+  try {
+    const res = await fetch(`/api/assets/${type}`, {
+      method: 'POST',
+      headers: { 'x-admin-token': token },
+      body: form,
+    });
+    if (!res.ok) throw new Error('Upload failed');
+    alert('Asset uploaded');
+    await loadAssetsAndConfig();
+  } catch (err) {
+    console.error('Upload failed', err);
+    alert('Upload failed');
+  }
+}
+
+async function deleteAsset(type, id) {
+  const token = tokenInput.value.trim();
+  if (!token) {
+    alert('Enter admin token');
+    return;
+  }
+  if (!confirm('Delete this asset?')) return;
+  try {
+    const res = await fetch(`/api/assets/${type}/${id}`, {
+      method: 'DELETE',
+      headers: { 'x-admin-token': token },
+    });
+    if (!res.ok) throw new Error('Delete failed');
+    await loadAssetsAndConfig();
+  } catch (err) {
+    console.error('Delete failed', err);
+    alert('Delete failed');
+  }
+}
+
+function renderLists(manifest, config) {
+  if (bodyList) bodyList.innerHTML = '';
+  if (tvList) tvList.innerHTML = '';
   manifest.bodies.forEach((b) => {
+    const row = document.createElement('div');
+    row.style.display = 'flex';
+    row.style.alignItems = 'center';
+    row.style.gap = '5px';
     const viewer = document.createElement('model-viewer');
     viewer.src = `/assets/${b.filename}`;
-    viewer.style.width = '100px';
-    viewer.style.height = '100px';
-    viewer.addEventListener('click', () => {
+    viewer.style.width = '60px';
+    viewer.style.height = '60px';
+    const info = document.createElement('span');
+    info.textContent = `${b.filename}`;
+    const radio = document.createElement('input');
+    radio.type = 'radio';
+    radio.name = 'bodySelect';
+    radio.value = b.id;
+    if (config.defaultBodyId === b.id) {
+      radio.checked = true;
       selectedBody = b;
-      bodyScaleRange.value = String(b.scale);
-      updatePreview();
-    });
-    bodiesDiv.appendChild(viewer);
+    }
+    radio.addEventListener('change', () => { selectedBody = b; updatePreview(); });
+    const del = document.createElement('button');
+    del.textContent = 'Delete';
+    del.addEventListener('click', () => deleteAsset('body', b.id));
+    row.append(viewer, info, radio, del);
+    bodyList.appendChild(row);
   });
-
-  const tvsDiv = document.createElement('div');
-  tvsDiv.innerHTML = '<h4>TVs</h4>';
   manifest.tvs.forEach((t) => {
-    const wrapper = document.createElement('div');
+    const row = document.createElement('div');
+    row.style.display = 'flex';
+    row.style.alignItems = 'center';
+    row.style.gap = '5px';
     const viewer = document.createElement('model-viewer');
     viewer.src = `/assets/${t.filename}`;
-    viewer.style.width = '100px';
-    viewer.style.height = '100px';
-    viewer.addEventListener('click', () => {
+    viewer.style.width = '60px';
+    viewer.style.height = '60px';
+    const info = document.createElement('span');
+    info.textContent = `${t.filename}`;
+    const radio = document.createElement('input');
+    radio.type = 'radio';
+    radio.name = 'tvSelect';
+    radio.value = t.id;
+    if (config.defaultTvId === t.id) {
+      radio.checked = true;
       selectedTV = t;
       tvScaleRange.value = String(t.scale);
-      updatePreview();
-    });
-    const editBtn = document.createElement('button');
-    editBtn.textContent = 'Edit Screen';
-    editBtn.addEventListener('click', () => editScreen(t));
-    wrapper.appendChild(viewer);
-    wrapper.appendChild(editBtn);
-    tvsDiv.appendChild(wrapper);
+    }
+    radio.addEventListener('change', () => { selectedTV = t; tvScaleRange.value = String(t.scale); updatePreview(); });
+    const del = document.createElement('button');
+    del.textContent = 'Delete';
+    del.addEventListener('click', () => deleteAsset('tv', t.id));
+    row.append(viewer, info, radio, del);
+    tvList.appendChild(row);
   });
-  assetLists.appendChild(bodiesDiv);
-  assetLists.appendChild(tvsDiv);
 }
 
 async function loadAssetsAndConfig() {
   try {
-    const res = await fetch('/api/assets');
-    currentManifest = await res.json();
-    renderAssetLists(currentManifest);
+    const [manifestRes, configRes] = await Promise.all([
+      fetch('/api/assets'),
+      fetch('/world-config'),
+    ]);
+    currentManifest = await manifestRes.json();
+    const cfg = await configRes.json();
+    renderLists(currentManifest, cfg);
+    if (cfg.tvPosition) {
+      tvPosX.value = String(cfg.tvPosition.x);
+      tvPosY.value = String(cfg.tvPosition.y);
+      tvPosZ.value = String(cfg.tvPosition.z);
+    }
+    if (cfg.webcamOffset) {
+      camPosX.value = String(cfg.webcamOffset.x);
+      camPosY.value = String(cfg.webcamOffset.y);
+      camPosZ.value = String(cfg.webcamOffset.z);
+      camScaleRange.value = String(cfg.webcamOffset.scale);
+    }
+    updatePreview();
   } catch (err) {
-    console.error('Failed to load assets', err);
+    console.error('Failed to load assets or config', err);
   }
 }
 loadAssetsAndConfig();
 
-[bodyScaleRange, tvScaleRange].forEach((input) => {
+if (uploadBodyBtn) uploadBodyBtn.addEventListener('click', () => uploadAsset('body'));
+if (uploadTVBtn) uploadTVBtn.addEventListener('click', () => uploadAsset('tv'));
+
+[tvPosX, tvPosY, tvPosZ, tvScaleRange].forEach((input) => {
   if (input) {
     input.addEventListener('input', () => {
-      if (input === bodyScaleRange && bodyMesh) {
-        bodyMesh.scale.setScalar(parseFloat(bodyScaleRange.value));
-      }
-      if (input === tvScaleRange && tvMesh) {
-        tvMesh.scale.setScalar(parseFloat(tvScaleRange.value));
+      if (tvGroup) {
+        if (input === tvScaleRange) {
+          tvGroup.scale.setScalar(parseFloat(tvScaleRange.value));
+        } else {
+          tvGroup.position.set(parseFloat(tvPosX.value), parseFloat(tvPosY.value), parseFloat(tvPosZ.value));
+        }
       }
     });
   }
 });
-[tvPosX, tvPosY, tvPosZ].forEach((input) => {
+[camPosX, camPosY, camPosZ, camScaleRange].forEach((input) => {
   if (input) {
     input.addEventListener('input', () => {
-      if (tvMesh) {
-        tvMesh.position.set(parseFloat(tvPosX.value), parseFloat(tvPosY.value), parseFloat(tvPosZ.value));
+      if (camPlane) {
+        if (input === camScaleRange) {
+          camPlane.scale.setScalar(parseFloat(camScaleRange.value));
+        } else {
+          camPlane.position.set(parseFloat(camPosX.value), parseFloat(camPosY.value), parseFloat(camPosZ.value));
+        }
       }
     });
   }
@@ -361,11 +378,6 @@ async function savePlacement() {
     return;
   }
   try {
-    await fetch(`/api/assets/body/${selectedBody.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'x-admin-token': token },
-      body: JSON.stringify({ scale: parseFloat(bodyScaleRange.value) }),
-    });
     await fetch(`/api/assets/tv/${selectedTV.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'x-admin-token': token },
@@ -379,6 +391,12 @@ async function savePlacement() {
         y: parseFloat(tvPosY.value),
         z: parseFloat(tvPosZ.value),
       },
+      webcamOffset: {
+        x: parseFloat(camPosX.value),
+        y: parseFloat(camPosY.value),
+        z: parseFloat(camPosZ.value),
+        scale: parseFloat(camScaleRange.value),
+      },
     };
     await fetch('/world-config', {
       method: 'POST',
@@ -391,124 +409,4 @@ async function savePlacement() {
     alert('Save failed');
   }
 }
-if (savePlacementBtn) {
-  savePlacementBtn.addEventListener('click', savePlacement);
-}
-
-// ---------------------------------------------------------------------------
-// TV screen region editor using webcam preview
-// ---------------------------------------------------------------------------
-function editScreen(tv) {
-  const token = tokenInput.value.trim();
-  if (!token) {
-    alert('Enter admin token');
-    return;
-  }
-  const overlay = document.createElement('div');
-  overlay.style.position = 'fixed';
-  overlay.style.top = '0';
-  overlay.style.left = '0';
-  overlay.style.right = '0';
-  overlay.style.bottom = '0';
-  overlay.style.background = 'rgba(0,0,0,0.7)';
-  overlay.style.display = 'flex';
-  overlay.style.alignItems = 'center';
-  overlay.style.justifyContent = 'center';
-
-  const panel = document.createElement('div');
-  panel.style.background = '#fff';
-  panel.style.padding = '10px';
-
-  const wrapper = document.createElement('div');
-  wrapper.style.position = 'relative';
-  const video = document.createElement('video');
-  video.autoplay = true;
-  video.width = 320;
-  video.height = 240;
-  const canvas = document.createElement('canvas');
-  canvas.width = 320;
-  canvas.height = 240;
-  canvas.style.position = 'absolute';
-  canvas.style.left = '0';
-  canvas.style.top = '0';
-  wrapper.appendChild(video);
-  wrapper.appendChild(canvas);
-
-  const controls = document.createElement('div');
-  controls.innerHTML = '<p>Adjust screen region then save.</p>';
-  const xInput = document.createElement('input');
-  xInput.type = 'range'; xInput.min = '0'; xInput.max = '1'; xInput.step = '0.01';
-  const yInput = document.createElement('input');
-  yInput.type = 'range'; yInput.min = '0'; yInput.max = '1'; yInput.step = '0.01';
-  const wInput = document.createElement('input');
-  wInput.type = 'range'; wInput.min = '0'; wInput.max = '1'; wInput.step = '0.01';
-  const hInput = document.createElement('input');
-  hInput.type = 'range'; hInput.min = '0'; hInput.max = '1'; hInput.step = '0.01';
-  [xInput, yInput, wInput, hInput].forEach((el) => (el.style.display = 'block'));
-  xInput.value = tv.screen ? tv.screen.x : '0';
-  yInput.value = tv.screen ? tv.screen.y : '0';
-  wInput.value = tv.screen ? tv.screen.width : '1';
-  hInput.value = tv.screen ? tv.screen.height : '1';
-
-  function drawRect() {
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.strokeStyle = 'red';
-    const x = parseFloat(xInput.value) * canvas.width;
-    const y = (1 - parseFloat(yInput.value) - parseFloat(hInput.value)) * canvas.height;
-    const w = parseFloat(wInput.value) * canvas.width;
-    const h = parseFloat(hInput.value) * canvas.height;
-    ctx.strokeRect(x, y, w, h);
-  }
-  [xInput, yInput, wInput, hInput].forEach((el) => el.addEventListener('input', drawRect));
-  drawRect();
-
-  const saveBtn = document.createElement('button');
-  saveBtn.textContent = 'Save';
-  const cancelBtn = document.createElement('button');
-  cancelBtn.textContent = 'Cancel';
-  cancelBtn.style.marginLeft = '10px';
-  controls.appendChild(xInput);
-  controls.appendChild(yInput);
-  controls.appendChild(wInput);
-  controls.appendChild(hInput);
-  controls.appendChild(saveBtn);
-  controls.appendChild(cancelBtn);
-
-  panel.appendChild(wrapper);
-  panel.appendChild(controls);
-  overlay.appendChild(panel);
-  document.body.appendChild(overlay);
-
-  navigator.mediaDevices.getUserMedia({ video: true }).then((stream) => {
-    video.srcObject = stream;
-  }).catch((err) => console.error('Webcam error', err));
-
-  saveBtn.addEventListener('click', async () => {
-    const body = {
-      screen: {
-        x: parseFloat(xInput.value),
-        y: parseFloat(yInput.value),
-        width: parseFloat(wInput.value),
-        height: parseFloat(hInput.value),
-      },
-    };
-    try {
-      await fetch(`/api/assets/tv/${tv.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'x-admin-token': token },
-        body: JSON.stringify(body),
-      });
-      tv.screen = body.screen;
-      alert('Screen saved');
-    } catch (err) {
-      console.error('Screen save failed', err);
-      alert('Save failed');
-    }
-    document.body.removeChild(overlay);
-  });
-
-  cancelBtn.addEventListener('click', () => {
-    document.body.removeChild(overlay);
-  });
-}
+if (savePlacementBtn) savePlacementBtn.addEventListener('click', savePlacement);

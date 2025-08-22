@@ -8,8 +8,9 @@
  *   2. Server creation (HTTP/HTTPS)
  *   3. Middleware, static routes and world config endpoints (public GET, admin POST)
  *   4. Socket.io events for position, participant count and WebRTC signalling
- *   5. Asset upload and listing endpoints for avatar models
- *   6. Startup logging with LAN-friendly addresses and HTTP/HTTPS guidance
+ *   5. Asset upload, listing and deletion endpoints for avatar models
+ *   6. Avatar refresh broadcasts when world configuration changes
+ *   7. Startup logging with LAN-friendly addresses and HTTP/HTTPS guidance
  * - Notes: set LISTEN_HOST=0.0.0.0 to allow LAN clients. Use --debug for verbose logs.
  */
 import express from 'express';
@@ -90,6 +91,7 @@ interface WorldConfig {
   defaultBodyId?: string;
   defaultTvId?: string;
   tvPosition?: { x: number; y: number; z: number };
+  webcamOffset?: { x: number; y: number; z: number; scale: number };
 }
 const worldConfig: WorldConfig = {
   worldName: 'Mingle World',
@@ -99,7 +101,8 @@ const worldConfig: WorldConfig = {
   worldColor: '#00aaff',
   defaultBodyId: undefined,
   defaultTvId: undefined,
-  tvPosition: { x: 0, y: 0, z: 0 },
+  tvPosition: { x: 0, y: 1, z: 0 },
+  webcamOffset: { x: 0, y: 0, z: 0.2, scale: 1 },
 };
 
 // Avatar asset storage lives under /public/assets. Metadata about uploaded
@@ -180,7 +183,7 @@ app.get('/world-config', (_req, res) => {
 
 if (ADMIN_TOKEN) {
   app.post('/world-config', verifyAdmin, (req, res) => {
-    const { worldName, maxParticipants, welcomeMessage, worldGeometry, worldColor, defaultBodyId, defaultTvId, tvPosition } = req.body;
+    const { worldName, maxParticipants, welcomeMessage, worldGeometry, worldColor, defaultBodyId, defaultTvId, tvPosition, webcamOffset } = req.body;
     if (typeof worldName === 'string') {
       worldConfig.worldName = worldName;
     }
@@ -211,7 +214,17 @@ if (ADMIN_TOKEN) {
         z: typeof z === 'number' ? z : worldConfig.tvPosition?.z || 0,
       };
     }
+    if (webcamOffset && typeof webcamOffset === 'object') {
+      const { x, y, z, scale } = webcamOffset;
+      worldConfig.webcamOffset = {
+        x: typeof x === 'number' ? x : worldConfig.webcamOffset?.x || 0,
+        y: typeof y === 'number' ? y : worldConfig.webcamOffset?.y || 0,
+        z: typeof z === 'number' ? z : worldConfig.webcamOffset?.z || 0,
+        scale: typeof scale === 'number' ? scale : worldConfig.webcamOffset?.scale || 1,
+      };
+    }
     console.log('World configuration updated:', worldConfig);
+    io.emit('updateAvatars', worldConfig); // notify connected clients to refresh
     res.json({ status: 'ok' });
   });
 
@@ -277,6 +290,32 @@ if (ADMIN_TOKEN) {
     } catch (err) {
       console.error('Failed to update asset', err);
       res.status(500).send('Update failed');
+    }
+  });
+
+  // Allow administrators to delete uploaded assets. Removing an entry also
+  // clears the associated file from disk to avoid orphaned binaries.
+  app.delete('/api/assets/:type/:id', verifyAdmin, (req, res) => {
+    const { type, id } = req.params as { type: 'body' | 'tv'; id: string };
+    const manifest = readManifest();
+    const list = type === 'tv' ? manifest.tvs : manifest.bodies;
+    const index = list.findIndex(e => e.id === id);
+    if (index === -1) {
+      return res.status(404).send('Asset not found');
+    }
+    const [removed] = list.splice(index, 1);
+    try {
+      fs.unlinkSync(path.join(assetsDir, removed.filename));
+    } catch (err) {
+      console.warn('Failed to remove asset file', err);
+    }
+    try {
+      writeManifest(manifest);
+      console.log('Asset deleted:', removed.filename);
+      res.json({ status: 'ok' });
+    } catch (err) {
+      console.error('Failed to update manifest after delete', err);
+      res.status(500).send('Delete failed');
     }
   });
 } else {

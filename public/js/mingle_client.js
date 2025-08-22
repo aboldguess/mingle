@@ -5,8 +5,9 @@
  *   movement, webcam streaming, and position synchronisation with the server.
  *   Default body and TV models are loaded from the server's world configuration
  *   and asset manifest. If none are configured, the client falls back to
- *   `default-body.glb` / `default-tv.glb` or simple box primitives. The TV
- *   model (or box) exposes a mesh named `screen` for the webcam texture.
+ *   `default-body.glb` / `default-tv.glb` or simple box primitives. A plane
+ *   representing the webcam feed is positioned relative to the TV using
+ *   offsets from the world configuration.
  * - Structure:
  *   1. Socket and DOM initialisation (unique player colour, random spawn,
  *      HTTPS warning)
@@ -27,6 +28,7 @@ const socket = io();
 const avatar = document.getElementById('avatar');
 const avatarBody = document.getElementById('avatarBody');
 const avatarTV = document.getElementById('avatarTV');
+const avatarWebcam = document.getElementById('avatarWebcam');
 const player = document.getElementById('player');
 const playerCamera = document.getElementById('playerCamera');
 // Expose the primary camera globally so auxiliary modules (e.g. mobile
@@ -153,8 +155,9 @@ const assetsEl = sceneEl.querySelector('a-assets');
 // determine the avatar appearance for local and remote participants.
 let defaultBodyEntry = null;
 let defaultTVEntry = null;
-// Stored offset for positioning the TV relative to the body.
+// Stored offset for positioning the TV relative to the body and webcam relative to the TV.
 let tvOffset = { x: 0, y: 1.6, z: 0 };
+let webcamOffset = { x: 0, y: 0, z: 0.2, scale: 1 };
 
 /**
  * Fetch world configuration and asset manifest to determine which body and TV
@@ -172,6 +175,9 @@ async function initDefaultAssets() {
     const config = await configRes.json();
     if (config.tvPosition) {
       tvOffset = config.tvPosition;
+    }
+    if (config.webcamOffset) {
+      webcamOffset = config.webcamOffset;
     }
     if (config.defaultBodyId) {
       defaultBodyEntry = manifest.bodies.find(b => b.id === config.defaultBodyId) || null;
@@ -221,7 +227,6 @@ async function initDefaultAssets() {
     assetsEl.appendChild(tvItem);
     avatarTV.setAttribute('gltf-model', '#default-tv');
     avatarTV.setAttribute('scale', `${defaultTVEntry.scale} ${defaultTVEntry.scale} ${defaultTVEntry.scale}`);
-    avatarTV.addEventListener('model-loaded', () => mapVideoToScreen(avatarTV, videoEl, defaultTVEntry.screen));
   } else {
     try {
       const res = await fetch('/assets/default-tv.glb', { method: 'HEAD' });
@@ -232,25 +237,19 @@ async function initDefaultAssets() {
         tvItem.src = '/assets/default-tv.glb';
         assetsEl.appendChild(tvItem);
         avatarTV.setAttribute('gltf-model', '#default-tv');
-        avatarTV.addEventListener('model-loaded', () => mapVideoToScreen(avatarTV, videoEl));
       } else {
         avatarTV.setAttribute('geometry', 'primitive: box; height: 0.4; width: 0.6; depth: 0.5');
         avatarTV.setAttribute('material', 'color: #222222');
-        if (avatarTV.hasLoaded) {
-          mapVideoToScreen(avatarTV, videoEl);
-        } else {
-          avatarTV.addEventListener('loaded', () => mapVideoToScreen(avatarTV, videoEl));
-        }
       }
     } catch {
       avatarTV.setAttribute('geometry', 'primitive: box; height: 0.4; width: 0.6; depth: 0.5');
       avatarTV.setAttribute('material', 'color: #222222');
-      if (avatarTV.hasLoaded) {
-        mapVideoToScreen(avatarTV, videoEl);
-      } else {
-        avatarTV.addEventListener('loaded', () => mapVideoToScreen(avatarTV, videoEl));
-      }
     }
+  }
+  if (avatarWebcam) {
+    avatarWebcam.setAttribute('material', `shader: flat; src: #localVideo`);
+    avatarWebcam.setAttribute('position', `${webcamOffset.x} ${webcamOffset.y} ${webcamOffset.z}`);
+    avatarWebcam.setAttribute('scale', `${webcamOffset.scale} ${webcamOffset.scale} ${webcamOffset.scale}`);
   }
 }
 
@@ -272,27 +271,6 @@ function debugError(...args) {
 // Apply a VideoTexture to the `screen` mesh of the provided model. Falls back
 // to the model root if a dedicated mesh is not found. Optional `screen` UV
 // coordinates allow cropping to a subregion of the texture.
-function mapVideoToScreen(modelEl, videoEl, screen) {
-  const mesh = modelEl.getObject3D('mesh');
-  if (!mesh) {
-    debugError('Model mesh missing for video texture');
-    return;
-  }
-  const target = mesh.getObjectByName('screen') || mesh;
-  const texture = new THREE.VideoTexture(videoEl);
-  texture.encoding = THREE.sRGBEncoding;
-  if (screen) {
-    texture.offset.set(screen.x, 1 - screen.y - screen.height);
-    texture.repeat.set(screen.width, screen.height);
-  }
-  target.traverse(node => {
-    if (node.isMesh) {
-      node.material = new THREE.MeshBasicMaterial({ map: texture });
-    }
-  });
-  debugLog('Video texture applied to model', modelEl.id);
-}
-
 // Log when the A-Frame scene has finished initialising which helps debug
 // stuck loading screens.
 sceneEl.addEventListener('loaded', () => {
@@ -324,6 +302,11 @@ socket.on('connect_error', (err) => {
 socket.on('clientCount', (count) => {
   connectedClients = count;
   updateStatus();
+});
+
+// When the admin updates default avatars or placement, reload to apply changes.
+socket.on('updateAvatars', () => {
+  location.reload();
 });
 
 // ---------------------------------------------------------------------------
@@ -683,18 +666,18 @@ socket.on('position', async data => {
     if (defaultTVEntry) {
       tv.setAttribute('gltf-model', '#default-tv');
       tv.setAttribute('scale', `${defaultTVEntry.scale} ${defaultTVEntry.scale} ${defaultTVEntry.scale}`);
-      tv.addEventListener('model-loaded', () => mapVideoToScreen(tv, videoEl, defaultTVEntry.screen));
     } else {
       tv.setAttribute('geometry', 'primitive: box; height: 0.4; width: 0.6; depth: 0.5');
       tv.setAttribute('material', 'color: #222222');
-      if (tv.hasLoaded) {
-        mapVideoToScreen(tv, videoEl);
-      } else {
-        tv.addEventListener('loaded', () => mapVideoToScreen(tv, videoEl));
-      }
     }
     // Position the TV head so the screen (and FPV camera) sit at eye level or saved offset.
     tv.setAttribute('position', `${tvOffset.x} ${tvOffset.y} ${tvOffset.z}`);
+
+    const camPlane = document.createElement('a-plane');
+    camPlane.setAttribute('position', `${webcamOffset.x} ${webcamOffset.y} ${webcamOffset.z}`);
+    camPlane.setAttribute('scale', `${webcamOffset.scale} ${webcamOffset.scale} ${webcamOffset.scale}`);
+    camPlane.setAttribute('material', `shader: flat; src: #video-${data.id}`);
+    tv.appendChild(camPlane);
 
     avatarEntity.appendChild(body);
     avatarEntity.appendChild(tv);
