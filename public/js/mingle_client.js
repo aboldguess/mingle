@@ -3,6 +3,9 @@
  * Mini README:
  * - Purpose: client-side logic for the Mingle prototype. Handles local avatar
  *   movement, webcam streaming, and position synchronisation with the server.
+ *   Avatars attempt to load `default-body.glb` and `default-tv.glb` from
+ *   `/public/assets`. If absent, simple box primitives are used instead. The TV
+ *   model (or box) exposes a mesh named `screen` for the webcam texture.
  * - Structure:
  *   1. Socket and DOM initialisation (unique player colour, random spawn,
  *      HTTPS warning)
@@ -15,12 +18,14 @@
  *   7. WebRTC audio/video sharing between participants
  *   8. Periodic server synchronisation
  *   9. Remote avatar and spectate marker tracking
+ *  10. GLB avatar models with webcam texture applied to the TV screen
 */
 
 // Establish socket connection to the server and cache DOM references.
 const socket = io();
 const avatar = document.getElementById('avatar');
-const avatarBack = document.getElementById('avatarBack');
+const avatarBody = document.getElementById('avatarBody');
+const avatarTV = document.getElementById('avatarTV');
 const player = document.getElementById('player');
 const playerCamera = document.getElementById('playerCamera');
 // Expose the primary camera globally so auxiliary modules (e.g. mobile
@@ -96,11 +101,14 @@ const localStreamPromise = navigator.mediaDevices
     // If the webcam or microphone cannot start, log the error (in debug mode)
     // and inform the user on-screen. The scene still renders thanks to the
     // disabled loading screen.
-    debugError('Could not start webcam or microphone', err);
+      debugError('Could not start webcam or microphone', err);
     document.getElementById('instructions').innerHTML +=
       '<p>Webcam or microphone unavailable. Check media permissions.</p>';
     throw err; // propagate failure so peer connections know no stream exists
   });
+
+// Video texture mapping occurs once default assets resolve later in
+// `initDefaultAssets`.
 
 // Randomise the starting location slightly so newcomers do not overlap and
 // immediately appear to others in the shared world.
@@ -121,10 +129,9 @@ const MODE_SPECTATOR = 'Spectator';
 const MODE_LAKITU = 'Lakitu';
 let currentMode = null; // populated once the initial mode is set
 
-// Assign a unique colour to this player used for the avatar's back and the
-// spectate marker. This colour is shared with other clients via socket updates.
+// Assign a unique colour to this player used for the spectate marker. This
+// colour is shared with other clients via socket updates.
 const playerColor = '#' + Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, '0');
-avatarBack.setAttribute('color', playerColor);
 spectateMarker.setAttribute('color', playerColor);
 
 // Ensure spectator camera never responds to built-in WASD controls and pause its
@@ -132,6 +139,59 @@ spectateMarker.setAttribute('color', playerColor);
 spectateCam.setAttribute('wasd-controls', 'enabled', false);
 const sceneEl = document.querySelector('a-scene');
 const assetsEl = sceneEl.querySelector('a-assets');
+
+// Track availability of default GLB models so remote avatars can mirror the
+// local appearance.
+let defaultBodyAvailable = false;
+let defaultTVAvailable = false;
+
+/**
+ * Attempt to load default GLB assets from /public/assets. If present, add them
+ * to the scene's asset registry and assign the models to the local avatar. If
+ * absent, fall back to simple box primitives. Returns a promise resolving once
+ * the setup completes.
+ */
+async function initDefaultAssets() {
+  async function addAsset(id, url) {
+    try {
+      const res = await fetch(url, { method: 'HEAD' });
+      if (res.ok) {
+        const item = document.createElement('a-asset-item');
+        item.id = id;
+        item.src = url;
+        assetsEl.appendChild(item);
+        debugLog(`Found default asset: ${url}`);
+        return true;
+      }
+      debugLog(`Default asset not found: ${url}`);
+      return false;
+    } catch (err) {
+      debugError('Asset check failed', err);
+      return false;
+    }
+  }
+
+  defaultBodyAvailable = await addAsset('default-body', '/assets/default-body.glb');
+  if (defaultBodyAvailable) {
+    avatarBody.setAttribute('gltf-model', '#default-body');
+  } else {
+    avatarBody.setAttribute('geometry', 'primitive: box; height: 1.6; width: 0.5; depth: 0.3');
+    avatarBody.setAttribute('material', 'color: #AAAAAA');
+  }
+
+  defaultTVAvailable = await addAsset('default-tv', '/assets/default-tv.glb');
+  const videoEl = document.getElementById('localVideo');
+  if (defaultTVAvailable) {
+    avatarTV.setAttribute('gltf-model', '#default-tv');
+    avatarTV.addEventListener('model-loaded', () => mapVideoToScreen(avatarTV, videoEl));
+  } else {
+    avatarTV.setAttribute('geometry', 'primitive: box; height: 0.4; width: 0.6; depth: 0.5');
+    avatarTV.setAttribute('material', 'color: #222222');
+    avatarTV.addEventListener('loaded', () => mapVideoToScreen(avatarTV, videoEl));
+  }
+}
+
+initDefaultAssets();
 
 // Simple helpers that only log when debug mode is enabled. The flag is
 // injected by the server via /config.js.
@@ -144,6 +204,25 @@ function debugError(...args) {
   if (window.MINGLE_DEBUG) {
     console.error(...args);
   }
+}
+
+// Apply a VideoTexture to the `screen` mesh of the provided model. Falls back
+// to the model root if a dedicated mesh is not found.
+function mapVideoToScreen(modelEl, videoEl) {
+  const mesh = modelEl.getObject3D('mesh');
+  if (!mesh) {
+    debugError('Model mesh missing for video texture');
+    return;
+  }
+  const target = mesh.getObjectByName('screen') || mesh;
+  const texture = new THREE.VideoTexture(videoEl);
+  texture.encoding = THREE.sRGBEncoding;
+  target.traverse(node => {
+    if (node.isMesh) {
+      node.material = new THREE.MeshBasicMaterial({ map: texture });
+    }
+  });
+  debugLog('Video texture applied to model', modelEl.id);
 }
 
 // Log when the A-Frame scene has finished initialising which helps debug
@@ -501,36 +580,38 @@ socket.on('position', async data => {
 
   let remote = remotes[data.id];
   if (!remote) {
-    // Remote avatars replicate the local #avatar: a forward-facing plane that
-    // displays the participant's video stream and a white backing plane so the
-    // texture only appears on the front.
+    // Remote avatar mirrors local structure: body model plus TV head with webcam feed.
     const avatarEntity = document.createElement('a-entity');
     avatarEntity.id = `avatar-${data.id}`; // allow audio entities to attach for spatial sound
+
+    const body = document.createElement('a-entity');
+    if (defaultBodyAvailable) {
+      body.setAttribute('gltf-model', '#default-body');
+    } else {
+      body.setAttribute('geometry', 'primitive: box; height: 1.6; width: 0.5; depth: 0.3');
+      body.setAttribute('material', 'color: #AAAAAA');
+    }
 
     const videoEl = document.createElement('video');
     videoEl.id = `video-${data.id}`;
     videoEl.autoplay = true;
     videoEl.playsInline = true;
-    // Mute video to satisfy mobile autoplay restrictions; remote audio is routed
-    // through a dedicated <audio> element for positional playback.
-    videoEl.muted = true;
+    videoEl.muted = true; // audio handled separately
     assetsEl.appendChild(videoEl);
 
-    const front = document.createElement('a-plane');
-    front.setAttribute('width', 1);
-    front.setAttribute('height', 1);
-    front.setAttribute('position', '0 0 -0.05');
-    front.setAttribute('rotation', '0 180 0'); // face the same direction as the avatar
-    front.setAttribute('material', `src:#${videoEl.id}`);
+    const tv = document.createElement('a-entity');
+    if (defaultTVAvailable) {
+      tv.setAttribute('gltf-model', '#default-tv');
+      tv.addEventListener('model-loaded', () => mapVideoToScreen(tv, videoEl));
+    } else {
+      tv.setAttribute('geometry', 'primitive: box; height: 0.4; width: 0.6; depth: 0.5');
+      tv.setAttribute('material', 'color: #222222');
+      tv.addEventListener('loaded', () => mapVideoToScreen(tv, videoEl));
+    }
+    tv.setAttribute('position', '0 0.8 0');
 
-    const back = document.createElement('a-plane');
-    back.setAttribute('width', 1);
-    back.setAttribute('height', 1);
-    back.setAttribute('position', '0 0 0.05');
-    back.setAttribute('color', '#FFFFFF');
-
-    avatarEntity.appendChild(front);
-    avatarEntity.appendChild(back);
+    avatarEntity.appendChild(body);
+    avatarEntity.appendChild(tv);
 
     const camBox = document.createElement('a-box');
     camBox.setAttribute('color', data.color || '#888888');
