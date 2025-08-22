@@ -8,7 +8,8 @@
  *   2. Server creation (HTTP/HTTPS)
  *   3. Middleware, static routes and admin world config endpoints
  *   4. Socket.io events for position, participant count and WebRTC signalling
- *   5. Startup logging with LAN-friendly addresses and HTTP/HTTPS guidance
+ *   5. Asset upload and listing endpoints for avatar models
+ *   6. Startup logging with LAN-friendly addresses and HTTP/HTTPS guidance
  * - Notes: set LISTEN_HOST=0.0.0.0 to allow LAN clients. Use --debug for verbose logs.
  */
 import express from 'express';
@@ -17,6 +18,7 @@ import http from 'http';
 import https from 'https';
 import path from 'path';
 import os from 'os';
+import multer from 'multer';
 import { Server } from 'socket.io';
 
 // Enable JSON parsing early so API endpoints can accept JSON bodies.
@@ -94,6 +96,54 @@ const worldConfig: WorldConfig = {
   worldColor: '#00aaff',
 };
 
+// Avatar asset storage lives under /public/assets. Metadata about uploaded
+// models is persisted in asset-manifest.json so clients can discover available
+// bodies and TV heads.
+const assetsDir = path.join(__dirname, '../public/assets');
+const manifestPath = path.join(assetsDir, 'asset-manifest.json');
+fs.mkdirSync(assetsDir, { recursive: true });
+
+interface AssetEntry {
+  id: string;
+  filename: string;
+  scale: number;
+  screen?: { x: number; y: number; width: number; height: number };
+}
+interface AssetManifest {
+  bodies: AssetEntry[];
+  tvs: AssetEntry[];
+}
+
+function readManifest(): AssetManifest {
+  try {
+    return JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as AssetManifest;
+  } catch {
+    return { bodies: [], tvs: [] };
+  }
+}
+
+function writeManifest(manifest: AssetManifest) {
+  fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+}
+
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, assetsDir),
+    filename: (_req, file, cb) => {
+      const safe = Date.now() + '-' + file.originalname.replace(/[^a-z0-9.-]/gi, '_');
+      cb(null, safe);
+    }
+  }),
+  fileFilter: (_req, file, cb) => {
+    if (path.extname(file.originalname).toLowerCase() === '.glb') {
+      cb(null, true);
+    } else {
+      cb(new Error('Only .glb files allowed'));
+    }
+  },
+  limits: { fileSize: 20 * 1024 * 1024 },
+});
+
 function verifyAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
   if (!ADMIN_TOKEN) {
     return res.status(503).send('Admin interface disabled');
@@ -131,9 +181,45 @@ if (ADMIN_TOKEN) {
     console.log('World configuration updated:', worldConfig);
     res.json({ status: 'ok' });
   });
+
+  app.post('/api/assets', verifyAdmin, upload.single('model'), (req, res) => {
+    const { type, scale, screenX, screenY, screenW, screenH } = req.body;
+    if (!req.file || (type !== 'body' && type !== 'tv')) {
+      return res.status(400).send('Invalid upload');
+    }
+    const manifest = readManifest();
+    const entry: AssetEntry = {
+      id: Date.now().toString(),
+      filename: req.file.filename,
+      scale: parseFloat(scale) || 1,
+    };
+    if (type === 'tv') {
+      entry.screen = {
+        x: parseFloat(screenX) || 0,
+        y: parseFloat(screenY) || 0,
+        width: parseFloat(screenW) || 1,
+        height: parseFloat(screenH) || 1,
+      };
+      manifest.tvs.push(entry);
+    } else {
+      manifest.bodies.push(entry);
+    }
+    try {
+      writeManifest(manifest);
+      console.log('Asset uploaded:', entry.filename);
+      res.json({ status: 'ok', asset: entry });
+    } catch (err) {
+      console.error('Failed to save manifest', err);
+      res.status(500).send('Manifest write failed');
+    }
+  });
 } else {
   console.warn('ADMIN_TOKEN not set; admin endpoints disabled');
 }
+
+app.get('/api/assets', (_req, res) => {
+  res.json(readManifest());
+});
 
 interface PositionData {
   [key: string]: number;
