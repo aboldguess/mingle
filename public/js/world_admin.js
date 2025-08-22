@@ -111,8 +111,8 @@ const bodyFileInput = document.getElementById('bodyFile');
 const uploadBodyBtn = document.getElementById('uploadBodyBtn');
 const tvFileInput = document.getElementById('tvFile');
 const uploadTVBtn = document.getElementById('uploadTVBtn');
-const bodyList = document.getElementById('bodyList');
-const tvList = document.getElementById('tvList');
+const bodyTableBody = document.getElementById('bodyTableBody');
+const tvTableBody = document.getElementById('tvTableBody');
 const previewCanvas = document.getElementById('previewCanvas');
 const tvScaleRange = document.getElementById('tvScaleRange');
 const tvPosX = document.getElementById('tvPosX');
@@ -268,26 +268,33 @@ function formatBytes(bytes) {
   return `${num.toFixed(1)} ${units[i]}`;
 }
 
+/**
+ * Render asset manifests into table rows for bodies and TVs.
+ * Each row shows a preview, metadata, a radio selector and a delete button.
+ */
 function renderLists(manifest, config) {
-  if (bodyList) bodyList.innerHTML = '';
-  if (tvList) tvList.innerHTML = '';
+  if (bodyTableBody) bodyTableBody.innerHTML = '';
+  if (tvTableBody) tvTableBody.innerHTML = '';
   manifest.bodies.forEach((b) => {
-    const row = document.createElement('div');
-    row.style.display = 'flex';
-    row.style.alignItems = 'center';
-    row.style.gap = '5px';
+    const row = document.createElement('tr');
+
+    const previewCell = document.createElement('td');
     const viewer = document.createElement('model-viewer');
     viewer.src = `/assets/${b.filename}`;
     viewer.style.width = '60px';
     viewer.style.height = '60px';
-    const info = document.createElement('div');
+    previewCell.appendChild(viewer);
+
+    const infoCell = document.createElement('td');
     const name = document.createElement('span');
     name.textContent = b.filename;
     const meta = document.createElement('small');
     const sizeText = formatBytes(b.size);
     const uploadedText = b.uploaded ? new Date(b.uploaded).toLocaleString() : 'unknown date';
     meta.textContent = `${sizeText} • ${uploadedText}`;
-    info.append(name, document.createElement('br'), meta);
+    infoCell.append(name, document.createElement('br'), meta);
+
+    const selectCell = document.createElement('td');
     const radio = document.createElement('input');
     radio.type = 'radio';
     radio.name = 'bodySelect';
@@ -297,29 +304,37 @@ function renderLists(manifest, config) {
       selectedBody = b;
     }
     radio.addEventListener('change', () => { selectedBody = b; updatePreview(); });
+    selectCell.appendChild(radio);
+
+    const deleteCell = document.createElement('td');
     const del = document.createElement('button');
     del.textContent = 'Delete';
     del.addEventListener('click', () => deleteAsset('body', b.id));
-    row.append(viewer, info, radio, del);
-    bodyList.appendChild(row);
+    deleteCell.appendChild(del);
+
+    row.append(previewCell, infoCell, selectCell, deleteCell);
+    bodyTableBody.appendChild(row);
   });
   manifest.tvs.forEach((t) => {
-    const row = document.createElement('div');
-    row.style.display = 'flex';
-    row.style.alignItems = 'center';
-    row.style.gap = '5px';
+    const row = document.createElement('tr');
+
+    const previewCell = document.createElement('td');
     const viewer = document.createElement('model-viewer');
     viewer.src = `/assets/${t.filename}`;
     viewer.style.width = '60px';
     viewer.style.height = '60px';
-    const info = document.createElement('div');
+    previewCell.appendChild(viewer);
+
+    const infoCell = document.createElement('td');
     const name = document.createElement('span');
     name.textContent = t.filename;
     const meta = document.createElement('small');
     const sizeText = formatBytes(t.size);
     const uploadedText = t.uploaded ? new Date(t.uploaded).toLocaleString() : 'unknown date';
     meta.textContent = `${sizeText} • ${uploadedText}`;
-    info.append(name, document.createElement('br'), meta);
+    infoCell.append(name, document.createElement('br'), meta);
+
+    const selectCell = document.createElement('td');
     const radio = document.createElement('input');
     radio.type = 'radio';
     radio.name = 'tvSelect';
@@ -330,11 +345,16 @@ function renderLists(manifest, config) {
       tvScaleRange.value = String(t.scale);
     }
     radio.addEventListener('change', () => { selectedTV = t; tvScaleRange.value = String(t.scale); updatePreview(); });
+    selectCell.appendChild(radio);
+
+    const deleteCell = document.createElement('td');
     const del = document.createElement('button');
     del.textContent = 'Delete';
     del.addEventListener('click', () => deleteAsset('tv', t.id));
-    row.append(viewer, info, radio, del);
-    tvList.appendChild(row);
+    deleteCell.appendChild(del);
+
+    row.append(previewCell, infoCell, selectCell, deleteCell);
+    tvTableBody.appendChild(row);
   });
 }
 
@@ -361,6 +381,12 @@ async function loadAssetsAndConfig() {
     updatePreview();
   } catch (err) {
     console.error('Failed to load assets or config', err);
+    if (bodyTableBody) {
+      bodyTableBody.innerHTML = '<tr><td colspan="4">Failed to load assets. Check console and server logs.</td></tr>';
+    }
+    if (tvTableBody) {
+      tvTableBody.innerHTML = '<tr><td colspan="4">Failed to load assets. Check console and server logs.</td></tr>';
+    }
   }
 }
 loadAssetsAndConfig();

@@ -8,7 +8,7 @@
     1. Navbar reused across Mingle pages
     2. Instructional form for admin token and world configuration values
     3. Fields for world design (geometry and colour)
-    4. Avatar asset management: body and TV lists with metadata, upload/delete controls
+    4. Avatar asset management: body and TV tables with metadata, upload/delete controls
        plus a Three.js preview to align the TV and webcam canvas
     5. Client-side script to load and save settings via the secure API
   - Notes: requires the server to be started with ADMIN_TOKEN for access.
@@ -37,6 +37,8 @@
     label { display:block; margin-top:10px; }
     input, textarea { width:100%; padding:8px; margin-top:5px; box-sizing:border-box; }
     button { margin-top:15px; padding:10px 15px; }
+    table { width:100%; border-collapse:collapse; margin-top:10px; }
+    th, td { border:1px solid #ccc; padding:5px; text-align:left; }
   </style>
   <script src="/config.js"></script>
 </head>
@@ -82,7 +84,12 @@
     <div id="avatarAssets" style="display:flex; gap:20px;">
       <div id="bodyColumn" style="flex:1;">
         <h3>Bodies</h3>
-        <div id="bodyList"></div>
+        <table>
+          <thead>
+            <tr><th>Preview</th><th>Info</th><th>Select</th><th>Delete</th></tr>
+          </thead>
+          <tbody id="bodyTableBody"></tbody>
+        </table>
         <div style="margin-top:10px;">
           <input type="file" id="bodyFile" accept=".glb" />
           <button id="uploadBodyBtn">Upload New Body</button>
@@ -90,7 +97,12 @@
       </div>
       <div id="tvColumn" style="flex:1;">
         <h3>TVs</h3>
-        <div id="tvList"></div>
+        <table>
+          <thead>
+            <tr><th>Preview</th><th>Info</th><th>Select</th><th>Delete</th></tr>
+          </thead>
+          <tbody id="tvTableBody"></tbody>
+        </table>
         <div style="margin-top:10px;">
           <input type="file" id="tvFile" accept=".glb" />
           <button id="uploadTVBtn">Upload New TV</button>
