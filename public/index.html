@@ -6,12 +6,13 @@
   - Structure:
     1. Page styling and navigation bar
     2. On-screen usage instructions with minimise toggle
-    3. Options sidebar with microphone mute and manual look controls
-    4. A-Frame scene setup with assets, cameras, avatar and spectate marker
+    3. Local webcam thumbnail with minimise button
+    4. Options sidebar with microphone mute and manual look controls
+    5. A-Frame scene setup with assets, cameras, avatar and spectate marker
        (local and remote avatars display webcam feeds via WebRTC)
        - Default GLB assets live in /public/assets and include a body and CRT TV
          model. The TV model's `screen` mesh is textured with the webcam feed.
-    5. Client scripts for movement and navbar functionality
+    6. Client scripts for movement and navbar functionality
   - Notes: A-Frame's default WASD controls are disabled on all cameras so that
     movement is handled exclusively by custom code in mingle_client.js.
 -->
@@ -89,7 +90,7 @@
     }
     #sidebar {
       position: fixed;
-      top: 60px;
+      top: 160px;
       right: 10px;
       width: 220px;
       background: rgba(255,255,255,0.9);
@@ -113,6 +114,40 @@
     }
     #moveJoystick { left: 0; bottom: 0; }
     #lookJoystick { right: 0; bottom: 0; display: none; }
+
+    /* Local webcam thumbnail positioned above the sidebar */
+    #selfPreview {
+      position: fixed;
+      top: 60px;
+      right: 10px;
+      width: 120px;
+      border: 2px solid #333;
+      background: #000;
+      z-index: 151;
+    }
+    #selfPreview video {
+      width: 100%;
+      display: block;
+    }
+    #selfPreview.hidden video {
+      display: none;
+    }
+    #selfPreviewToggle {
+      position: absolute;
+      top: 0;
+      right: 0;
+      background: rgba(0,0,0,0.6);
+      color: #fff;
+      border: none;
+      width: 20px;
+      height: 20px;
+      border-radius: 0 0 0 10px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    #selfPreview.hidden {
+      height: 20px;
+    }
   </style>
   <!--
     Load A-Frame and supporting libraries *before* the scene so that all
@@ -145,6 +180,11 @@
     <p>Use the profile button in the top-right to access account options.</p>
     <p>Allow microphone access when prompted so others can hear you. Use the mute control in the sidebar to silence yourself.</p>
     <p>On touch devices, a left thumbstick mirrors WASD movement. Enable Manual look to use a right thumbstick for camera pan/tilt.</p>
+  </div>
+
+  <div id="selfPreview">
+    <button id="selfPreviewToggle" aria-label="Hide webcam preview">&minus;</button>
+    <video id="selfPreviewVideo" autoplay playsinline muted></video>
   </div>
 
   <aside id="sidebar">
@@ -209,6 +249,7 @@
   <script src="js/mobile_controls.js"></script>
   <script src="js/webrtc.js"></script>
   <script src="js/ui_controls.js"></script>
+  <script src="js/webcam_preview.js"></script>
   <script src="js/mingle_navbar.js"></script>
 </body>
 </html>
