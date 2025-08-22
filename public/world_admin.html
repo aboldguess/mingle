@@ -2,12 +2,14 @@
 <!--
   world_admin.html
   Mini README:
-  - Purpose: provide a simple admin interface to view and update world settings.
+  - Purpose: provide a simple admin interface to view and update world settings
+    and upload avatar assets.
   - Structure:
     1. Navbar reused across Mingle pages
     2. Instructional form for admin token and world configuration values
     3. Fields for world design (geometry and colour)
-    4. Client-side script to load and save settings via the secure API
+    4. Avatar asset uploads for body and TV models with scale/UV metadata
+    5. Client-side script to load and save settings via the secure API
   - Notes: requires the server to be started with ADMIN_TOKEN for access.
 -->
 <html lang="en">
@@ -73,6 +75,39 @@
     <input type="color" id="worldColor" value="#00aaff" />
     <button id="loadBtn">Load Current Config</button>
     <button id="saveBtn">Save Config</button>
+
+    <h2>Avatar Assets</h2>
+    <p>Upload GLB models for the default avatar body and TV. UV values range from 0 to 1.</p>
+
+    <section id="bodyAsset">
+      <h3>Body Model</h3>
+      <label for="bodyFile">Body GLB</label>
+      <input type="file" id="bodyFile" accept=".glb" />
+      <label for="bodyScale">Body Scale</label>
+      <input type="number" id="bodyScale" step="0.1" value="1" />
+      <button id="uploadBodyBtn">Upload Body</button>
+    </section>
+
+    <section id="tvAsset">
+      <h3>TV Model</h3>
+      <label for="tvFile">TV GLB</label>
+      <input type="file" id="tvFile" accept=".glb" />
+      <label for="tvScale">TV Scale</label>
+      <input type="number" id="tvScale" step="0.1" value="1" />
+      <fieldset>
+        <legend>Screen UV Region</legend>
+        <label for="screenX">X</label>
+        <input type="number" id="screenX" step="0.01" min="0" max="1" value="0" />
+        <label for="screenY">Y</label>
+        <input type="number" id="screenY" step="0.01" min="0" max="1" value="0" />
+        <label for="screenW">Width</label>
+        <input type="number" id="screenW" step="0.01" min="0" max="1" value="1" />
+        <label for="screenH">Height</label>
+        <input type="number" id="screenH" step="0.01" min="0" max="1" value="1" />
+        <canvas id="screenPreview" width="200" height="200" style="border:1px solid #ccc; display:block; margin-top:10px;"></canvas>
+      </fieldset>
+      <button id="uploadTVBtn">Upload TV</button>
+    </section>
   </main>
   <script src="js/mingle_navbar.js"></script>
   <script src="js/world_admin.js"></script>
