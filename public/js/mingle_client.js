@@ -569,10 +569,16 @@ function movementLoop(time) {
       return;
     }
 
-  // Mirror the player camera's rotation on the avatar so it visually matches the
-  // viewer's perspective. In Lakitu mode the avatar remains fixed and unrotated.
+  // Mirror the camera's yaw on the avatar so the body rotates with left/right
+  // look movement. Tilt the TV separately using the camera pitch so the body
+  // stays upright when looking up or down. In Lakitu mode the avatar remains
+  // fixed and unrotated.
   if (currentMode !== MODE_LAKITU) {
-    avatar.object3D.rotation.copy(playerCamera.object3D.rotation);
+    const camRot = playerCamera.object3D.rotation;
+    // Apply only yaw to the avatar body.
+    avatar.object3D.rotation.set(0, camRot.y, 0);
+    // Apply pitch to the TV so it nods independently of the body.
+    avatarTV.object3D.rotation.set(camRot.x, 0, 0);
   }
 
   const dir = new THREE.Vector3();
@@ -618,9 +624,12 @@ requestAnimationFrame(movementLoop);
 // server. The player camera's rotation represents avatar orientation.
 setInterval(() => {
   const position = player.getAttribute('position');
-  const rotation = playerCamera.getAttribute('rotation');
+  // Extract rotation in degrees and separate TV tilt so only yaw is applied to the body.
+  const camRot = playerCamera.getAttribute('rotation');
+  const rotation = { x: 0, y: camRot.y, z: 0 };
+  const tvTilt = camRot.x;
   const spectatePos = currentMode === MODE_SPECTATOR ? spectateCam.getAttribute('position') : null;
-  socket.emit('position', { position, rotation, color: playerColor, spectatePos });
+  socket.emit('position', { position, rotation, tvTilt, color: playerColor, spectatePos });
 }, 100);
 
 // Track remote avatars and their spectate camera markers. Each entry mirrors a
@@ -699,13 +708,21 @@ socket.on('position', async data => {
 
     sceneEl.appendChild(avatarEntity);
     sceneEl.appendChild(camBox);
-    remotes[data.id] = { avatar: avatarEntity, cam: camBox };
+    remotes[data.id] = { avatar: avatarEntity, cam: camBox, tv };
     remote = remotes[data.id];
     debugLog('Remote avatar created for', data.id);
   }
 
   remote.avatar.setAttribute('position', data.position);
-  remote.avatar.setAttribute('rotation', data.rotation);
+  if (data.rotation) {
+    // Only apply yaw so the remote body stays upright.
+    remote.avatar.setAttribute('rotation', { x: 0, y: data.rotation.y, z: 0 });
+  }
+  if (remote.tv) {
+    // Tilt the remote TV using the transmitted pitch value.
+    const tilt = data.tvTilt || 0;
+    remote.tv.setAttribute('rotation', { x: tilt, y: 0, z: 0 });
+  }
   if (data.spectatePos) {
     remote.cam.setAttribute('position', data.spectatePos);
     remote.cam.setAttribute('visible', true);
