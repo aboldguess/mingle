@@ -117,9 +117,10 @@ const localStreamPromise = navigator.mediaDevices
 // Video texture mapping occurs once default assets resolve later in
 // `initDefaultAssets`.
 
-// Randomise the starting location slightly so newcomers do not overlap and
-// immediately appear to others in the shared world.
-const startPos = { x: Math.random() * 4 - 2, y: 1.6, z: Math.random() * 4 - 2 };
+// Randomise the starting location slightly so newcomers do not overlap. The
+// player entity is rooted at ground level so `y` remains 0 to keep feet on the
+// floor.
+const startPos = { x: Math.random() * 4 - 2, y: 0, z: Math.random() * 4 - 2 };
 player.setAttribute('position', startPos);
 
 // Warn the user if the page is not served over HTTPS which prevents webcam and
@@ -194,7 +195,13 @@ async function initDefaultAssets() {
   } else {
     avatarTV.setAttribute('geometry', 'primitive: box; height: 0.4; width: 0.6; depth: 0.5');
     avatarTV.setAttribute('material', 'color: #222222');
-    avatarTV.addEventListener('loaded', () => mapVideoToScreen(avatarTV, videoEl));
+    // If the primitive is already initialised, apply the texture immediately;
+    // otherwise wait for its `loaded` event.
+    if (avatarTV.hasLoaded) {
+      mapVideoToScreen(avatarTV, videoEl);
+    } else {
+      avatarTV.addEventListener('loaded', () => mapVideoToScreen(avatarTV, videoEl));
+    }
   }
 }
 
@@ -403,8 +410,8 @@ function selectMode(mode) {
   debugLog('Mode selected', currentMode);
 
   // Reset player and camera positions to the centre of the world for a fresh start.
-  player.setAttribute('position', { x: 0, y: 1.6, z: 0 });
-  playerCamera.setAttribute('position', { x: 0, y: 0, z: 0 });
+  player.setAttribute('position', { x: 0, y: 0, z: 0 });
+  playerCamera.setAttribute('position', { x: 0, y: 1.6, z: 0 });
 
   if (currentMode === MODE_SPECTATOR) {
     setSpectateMode(true);
@@ -412,7 +419,7 @@ function selectMode(mode) {
   } else if (currentMode === MODE_LAKITU) {
     setSpectateMode(false);
     avatar.setAttribute('visible', true);
-    playerCamera.setAttribute('position', { x: 0, y: 0, z: 3 });
+    playerCamera.setAttribute('position', { x: 0, y: 1.6, z: 3 });
     // Point the camera at the avatar to start.
     playerCamera.object3D.lookAt(player.object3D.position);
   } else {
@@ -598,6 +605,8 @@ socket.on('position', async data => {
       body.setAttribute('geometry', 'primitive: box; height: 1.6; width: 0.5; depth: 0.3');
       body.setAttribute('material', 'color: #AAAAAA');
     }
+    // Offset the body so its feet touch the ground when the avatar root is at y=0.
+    body.setAttribute('position', '0 0.8 0');
 
     const videoEl = document.createElement('video');
     videoEl.id = `video-${data.id}`;
@@ -613,9 +622,14 @@ socket.on('position', async data => {
     } else {
       tv.setAttribute('geometry', 'primitive: box; height: 0.4; width: 0.6; depth: 0.5');
       tv.setAttribute('material', 'color: #222222');
-      tv.addEventListener('loaded', () => mapVideoToScreen(tv, videoEl));
+      if (tv.hasLoaded) {
+        mapVideoToScreen(tv, videoEl);
+      } else {
+        tv.addEventListener('loaded', () => mapVideoToScreen(tv, videoEl));
+      }
     }
-    tv.setAttribute('position', '0 0.8 0');
+    // Position the TV head so the screen (and FPV camera) sit at eye level.
+    tv.setAttribute('position', '0 1.6 0');
 
     avatarEntity.appendChild(body);
     avatarEntity.appendChild(tv);
