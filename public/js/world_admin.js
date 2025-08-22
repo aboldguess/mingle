@@ -43,6 +43,22 @@ async function loadConfig() {
     welcomeMessageInput.value = data.welcomeMessage;
     worldGeometrySelect.value = data.worldGeometry || 'plane';
     worldColorInput.value = data.worldColor || '#00aaff';
+    if (data.tvPosition) {
+      tvPosX.value = String(data.tvPosition.x);
+      tvPosY.value = String(data.tvPosition.y);
+      tvPosZ.value = String(data.tvPosition.z);
+    }
+    if (currentManifest) {
+      selectedBody = currentManifest.bodies.find(b => b.id === data.defaultBodyId) || null;
+      selectedTV = currentManifest.tvs.find(t => t.id === data.defaultTvId) || null;
+      if (selectedBody) {
+        bodyScaleRange.value = String(selectedBody.scale);
+      }
+      if (selectedTV) {
+        tvScaleRange.value = String(selectedTV.scale);
+      }
+      updatePreview();
+    }
     adminDebugLog('Loaded config', data);
   } catch (err) {
     console.error(err);
@@ -187,6 +203,10 @@ const tvPosY = document.getElementById('tvPosY');
 const tvPosZ = document.getElementById('tvPosZ');
 const savePlacementBtn = document.getElementById('savePlacementBtn');
 
+// Manifest of uploaded assets, populated when assets are loaded so the config
+// loader can match saved IDs to actual files.
+let currentManifest = null;
+
 let selectedBody = null;
 let selectedTV = null;
 let bodyMesh = null;
@@ -305,8 +325,8 @@ function renderAssetLists(manifest) {
 async function loadAssetsAndConfig() {
   try {
     const res = await fetch('/api/assets');
-    const manifest = await res.json();
-    renderAssetLists(manifest);
+    currentManifest = await res.json();
+    renderAssetLists(currentManifest);
   } catch (err) {
     console.error('Failed to load assets', err);
   }
