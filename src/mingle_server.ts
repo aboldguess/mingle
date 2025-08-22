@@ -129,46 +129,63 @@ interface AssetManifest {
   tvs: AssetEntry[];
 }
 
+/**
+ * Read the asset manifest and ensure it reflects the current filesystem.
+ * Any new `.glb` files dropped into the `bodies/` or `tvs/` directories are
+ * discovered and appended, while entries for missing files are removed. This
+ * allows administrators to manually copy models into the assets folders and
+ * have them appear in the admin interface without a separate upload step.
+ */
 function readManifest(): AssetManifest {
+  let manifest: AssetManifest;
   try {
-    return JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as AssetManifest;
+    manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as AssetManifest;
   } catch {
-    // If the manifest is missing or corrupt, rebuild it by scanning the
-    // existing asset folders. This allows administrators to drop `.glb` files
-    // into the directories manually and still have them appear in the admin UI
-    // without a prior upload. Each discovered file is assigned a deterministic
-    // ID based on its filename so repeat scans remain stable.
-    const manifest: AssetManifest = { bodies: [], tvs: [] };
+    manifest = { bodies: [], tvs: [] };
+  }
 
-    const scan = (dir: string, subdir: 'bodies' | 'tvs') => {
-      if (!fs.existsSync(dir)) return;
-      for (const file of fs.readdirSync(dir)) {
-        if (file.toLowerCase().endsWith('.glb')) {
-          const stats = fs.statSync(path.join(dir, file));
-          const entry: AssetEntry = {
-            id: file, // filenames are unique within their folders
-            filename: path.posix.join(subdir, file),
-            scale: 1,
-            size: stats.size,
-            uploaded: stats.mtimeMs,
-          };
-          if (subdir === 'bodies') {
-            manifest.bodies.push(entry);
-          } else {
-            manifest.tvs.push(entry);
-          }
-        }
+  let changed = false;
+  const syncDir = (dir: string, subdir: 'bodies' | 'tvs', list: AssetEntry[]) => {
+    const existing = new Map(list.map(e => [e.filename, e]));
+    const files = fs.existsSync(dir) ? fs.readdirSync(dir) : [];
+
+    // Add new files not yet tracked in the manifest
+    for (const file of files) {
+      if (!file.toLowerCase().endsWith('.glb')) continue;
+      const rel = path.posix.join(subdir, file);
+      if (!existing.has(rel)) {
+        const stats = fs.statSync(path.join(dir, file));
+        list.push({
+          id: file,
+          filename: rel,
+          scale: 1,
+          size: stats.size,
+          uploaded: stats.mtimeMs,
+        });
+        changed = true;
       }
-    };
-    scan(bodyAssetsDir, 'bodies');
-    scan(tvAssetsDir, 'tvs');
+    }
+
+    // Remove manifest entries whose files have been deleted
+    for (let i = list.length - 1; i >= 0; i--) {
+      const f = path.join(assetsDir, list[i].filename);
+      if (!fs.existsSync(f)) {
+        list.splice(i, 1);
+        changed = true;
+      }
+    }
+  };
+
+  syncDir(bodyAssetsDir, 'bodies', manifest.bodies);
+  syncDir(tvAssetsDir, 'tvs', manifest.tvs);
+  if (changed) {
     try {
       writeManifest(manifest);
     } catch (err) {
-      console.warn('Failed to generate asset manifest', err);
+      console.warn('Failed to sync asset manifest', err);
     }
-    return manifest;
   }
+  return manifest;
 }
 
 function writeManifest(manifest: AssetManifest) {
