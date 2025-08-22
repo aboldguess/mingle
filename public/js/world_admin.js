@@ -160,6 +160,8 @@ async function uploadAsset(type) {
     const data = await res.json();
     adminDebugLog('Uploaded asset', data);
     alert('Asset uploaded');
+    // Immediately refresh the asset lists so new uploads appear without a page reload
+    await loadAssetsAndConfig();
   } catch (err) {
     console.error(err);
     alert('Upload failed');
