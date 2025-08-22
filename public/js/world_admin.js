@@ -256,6 +256,18 @@ async function deleteAsset(type, id) {
   }
 }
 
+function formatBytes(bytes) {
+  if (typeof bytes !== 'number') return 'unknown';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let i = 0;
+  let num = bytes;
+  while (num >= 1024 && i < units.length - 1) {
+    num /= 1024;
+    i++;
+  }
+  return `${num.toFixed(1)} ${units[i]}`;
+}
+
 function renderLists(manifest, config) {
   if (bodyList) bodyList.innerHTML = '';
   if (tvList) tvList.innerHTML = '';
@@ -268,8 +280,14 @@ function renderLists(manifest, config) {
     viewer.src = `/assets/${b.filename}`;
     viewer.style.width = '60px';
     viewer.style.height = '60px';
-    const info = document.createElement('span');
-    info.textContent = `${b.filename}`;
+    const info = document.createElement('div');
+    const name = document.createElement('span');
+    name.textContent = b.filename;
+    const meta = document.createElement('small');
+    const sizeText = formatBytes(b.size);
+    const uploadedText = b.uploaded ? new Date(b.uploaded).toLocaleString() : 'unknown date';
+    meta.textContent = `${sizeText} • ${uploadedText}`;
+    info.append(name, document.createElement('br'), meta);
     const radio = document.createElement('input');
     radio.type = 'radio';
     radio.name = 'bodySelect';
@@ -294,8 +312,14 @@ function renderLists(manifest, config) {
     viewer.src = `/assets/${t.filename}`;
     viewer.style.width = '60px';
     viewer.style.height = '60px';
-    const info = document.createElement('span');
-    info.textContent = `${t.filename}`;
+    const info = document.createElement('div');
+    const name = document.createElement('span');
+    name.textContent = t.filename;
+    const meta = document.createElement('small');
+    const sizeText = formatBytes(t.size);
+    const uploadedText = t.uploaded ? new Date(t.uploaded).toLocaleString() : 'unknown date';
+    meta.textContent = `${sizeText} • ${uploadedText}`;
+    info.append(name, document.createElement('br'), meta);
     const radio = document.createElement('input');
     radio.type = 'radio';
     radio.name = 'tvSelect';
