@@ -235,9 +235,9 @@
       <a-entity id="avatar" position="0 0 0" visible="false">
         <!-- Model assignments occur in mingle_client.js once assets are loaded. -->
         <a-entity id="avatarBody" position="0 0.8 0"></a-entity>
-        <a-entity id="avatarTV" position="0 1.6 0">
+        <a-entity id="avatarTV" position="0 1.6 0" geometry="primitive: box; height: 0.5; width: 0.5; depth: 0.5" material="color: #222222">
           <!-- Placeholder plane for webcam feed; attributes set in mingle_client.js -->
-          <a-plane id="avatarWebcam" position="0 0 0.2" width="1" height="1"></a-plane>
+          <a-plane id="avatarWebcam" position="0 0 -0.251" width="0.5" height="0.5"></a-plane>
         </a-entity>
       </a-entity>
     </a-entity>
