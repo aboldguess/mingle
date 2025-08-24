@@ -1,4 +1,12 @@
 /**
+ * three.module.js
+ * Mini README:
+ * - Purpose: main entry point for the Three.js ES module build, re-exporting core
+ *   functionality from three.core.js and additional features.
+ * - Structure: imports the core module and re-exports classes, constants and helpers.
+ * - Notes: vendored from Three.js so the admin preview works without external CDN access.
+ */
+/**
  * @license
  * Copyright 2010-2025 Three.js Authors
  * SPDX-License-Identifier: MIT
