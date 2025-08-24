@@ -164,8 +164,8 @@ let tvOffset = { x: 0, y: 1.6, z: 0 };
 let webcamOffset = {
   x: 0,
   y: 0,
-  // Negative z places the webcam feed on the forward (-Z) face rather than inside the cube.
-  z: -(FALLBACK_TV_SIZE / 2 + WEB_CAM_EPSILON),
+  // Positive z places the webcam feed slightly in front of the TV's face so it remains visible.
+  z: FALLBACK_TV_SIZE / 2 + WEB_CAM_EPSILON,
   scale: FALLBACK_TV_SIZE,
 };
 
@@ -188,6 +188,13 @@ async function initDefaultAssets() {
     }
     if (config.webcamOffset) {
       webcamOffset = config.webcamOffset;
+    }
+    // Ensure the webcam plane sits just outside the TV surface. A positive Z offset keeps
+    // the video texture in front of the head cube and avoids it rendering inside the mesh.
+    const halfDepth = (webcamOffset.scale || FALLBACK_TV_SIZE) / 2;
+    webcamOffset.z = Math.abs(webcamOffset.z);
+    if (webcamOffset.z < halfDepth + WEB_CAM_EPSILON) {
+      webcamOffset.z = halfDepth + WEB_CAM_EPSILON;
     }
     if (config.defaultBodyId) {
       defaultBodyEntry = manifest.bodies.find(b => b.id === config.defaultBodyId) || null;
