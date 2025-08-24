@@ -292,7 +292,9 @@ async function initDefaultAssets() {
   }
 }
 
-initDefaultAssets();
+// Initialise default assets and retain the promise so remote avatar
+// creation waits for models to load before instantiating peers.
+const assetsReady = initDefaultAssets();
 
 // Simple helpers that only log when debug mode is enabled. The flag is
 // injected by the server via /config.js.
@@ -662,6 +664,9 @@ setInterval(() => {
 // participant in the scene so everyone sees all other users.
 const remotes = {};
 socket.on('position', async data => {
+  // Ensure default models have loaded before spawning remote avatars so they
+  // appear with the intended assets instead of placeholder primitives.
+  await assetsReady;
   // The server echoes position updates to every client, including the sender.
   // Skip our own entry so only other participants generate remote avatars.
   if (data.id === socket.id) { return; }
