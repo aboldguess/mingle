@@ -164,8 +164,8 @@ let tvOffset = { x: 0, y: 1.6, z: 0 };
 let webcamOffset = {
   x: 0,
   y: 0,
-  // Positive z places the webcam feed on the forward face rather than inside the cube.
-  z: FALLBACK_TV_SIZE / 2 + WEB_CAM_EPSILON,
+  // Negative z places the webcam feed on the forward (-Z) face rather than inside the cube.
+  z: -(FALLBACK_TV_SIZE / 2 + WEB_CAM_EPSILON),
   scale: FALLBACK_TV_SIZE,
 };
 
