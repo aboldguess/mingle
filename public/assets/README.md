@@ -6,8 +6,9 @@ Mini README:
   - `bodies/` – uploaded body models
   - `tvs/` – uploaded TV head models
   - `asset-manifest.json` – generated metadata describing available assets
-- **Notes:** Default models (`default-body.glb`, `default-tv.glb`) may be placed
-  directly in this directory if desired.
+- **Notes:** `.glb` files placed directly in this directory are automatically
+  detected. Name files with `tv` in the title (e.g. `default-tv.glb`) to have
+  them treated as TV models; all other root-level files are treated as bodies.
 
 Drop appropriately named files into the respective subdirectories or upload
 them via the admin panel. Metadata such as model scale and TV screen region are
