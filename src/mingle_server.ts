@@ -93,6 +93,7 @@ interface WorldConfig {
   defaultTvId?: string;
   bodyPosition?: { x: number; y: number; z: number };
   tvPosition?: { x: number; y: number; z: number };
+  tvRotation?: { x: number; y: number; z: number };
   webcamOffset?: { x: number; y: number; z: number; scale: number };
 }
 const worldConfig: WorldConfig = {
@@ -114,6 +115,7 @@ const worldConfig: WorldConfig = {
   // attached. The webcam plane is positioned slightly in front of the TV's
   // forward (+Z) face so the video texture renders cleanly without z-fighting.
   tvPosition: { x: 0, y: 1.6, z: 0 },
+  tvRotation: { x: 0, y: 0, z: 0 },
   webcamOffset: { x: 0, y: 0, z: 0.251, scale: 0.5 },
 };
 
@@ -310,7 +312,7 @@ app.get('/world-config', (_req, res) => {
 
 if (ADMIN_TOKEN) {
   app.post('/world-config', verifyAdmin, (req, res) => {
-    const { worldName, maxParticipants, welcomeMessage, worldGeometry, worldColor, defaultBodyId, defaultTvId, bodyPosition, tvPosition, webcamOffset } = req.body;
+    const { worldName, maxParticipants, welcomeMessage, worldGeometry, worldColor, defaultBodyId, defaultTvId, bodyPosition, tvPosition, tvRotation, webcamOffset } = req.body;
     if (typeof worldName === 'string') {
       worldConfig.worldName = worldName;
     }
@@ -347,6 +349,14 @@ if (ADMIN_TOKEN) {
         x: typeof x === 'number' ? x : worldConfig.tvPosition?.x || 0,
         y: typeof y === 'number' ? y : worldConfig.tvPosition?.y || 0,
         z: typeof z === 'number' ? z : worldConfig.tvPosition?.z || 0,
+      };
+    }
+    if (tvRotation && typeof tvRotation === 'object') {
+      const { x, y, z } = tvRotation;
+      worldConfig.tvRotation = {
+        x: typeof x === 'number' ? x : worldConfig.tvRotation?.x || 0,
+        y: typeof y === 'number' ? y : worldConfig.tvRotation?.y || 0,
+        z: typeof z === 'number' ? z : worldConfig.tvRotation?.z || 0,
       };
     }
     if (webcamOffset && typeof webcamOffset === 'object') {
