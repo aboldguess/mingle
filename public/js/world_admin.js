@@ -8,7 +8,7 @@
  *   2. Load existing config when requested
  *   3. Submit updates back to the server
  *   4. Handle world design (geometry and colour) fields
- *   5. Upload body and TV models
+ *   5. Upload body and TV models and disable uploads when admin token is missing
  *   6. List uploaded assets with metadata, selection radios and delete controls
  *   7. Three.js preview for aligning TV and webcam canvas before saving
  * - Notes: requires the admin token set on the server. Token is provided via the form.
@@ -241,11 +241,18 @@ async function uploadAsset(type) {
       headers: { 'x-admin-token': token },
       body: form,
     });
-    if (!res.ok) throw new Error('Upload failed');
+    if (!res.ok) {
+      const msg = await res.text();
+      adminDebugLog('Upload failed', res.status, msg);
+      alert(`Upload failed: ${msg}`);
+      return;
+    }
+    adminDebugLog('Upload succeeded');
     alert('Asset uploaded');
     await loadAssetsAndConfig();
   } catch (err) {
     console.error('Upload failed', err);
+    adminDebugLog('Upload encountered error', err);
     alert('Upload failed');
   }
 }
@@ -266,6 +273,7 @@ async function deleteAsset(type, id) {
     await loadAssetsAndConfig();
   } catch (err) {
     console.error('Delete failed', err);
+    adminDebugLog('Delete failed', err);
     alert('Delete failed');
   }
 }
@@ -372,12 +380,29 @@ function renderLists(manifest, config) {
   });
 }
 
+/**
+ * Fetch asset manifest and world configuration.
+ * Also probes the assets endpoint to determine whether admin uploads are
+ * available; a 503 response indicates the server lacks an ADMIN_TOKEN and the
+ * upload buttons are disabled accordingly.
+ */
 async function loadAssetsAndConfig() {
   try {
-    const [manifestRes, configRes] = await Promise.all([
-      fetch('/api/assets'),
-      fetch('/world-config'),
-    ]);
+    const manifestRes = await fetch('/api/assets');
+    if (manifestRes.status === 503) {
+      if (uploadBodyBtn) uploadBodyBtn.disabled = true;
+      if (uploadTVBtn) uploadTVBtn.disabled = true;
+      adminDebugLog('Admin token not configured; uploads disabled');
+      const msg = '<tr><td colspan="4">Asset uploads disabled. Server missing admin token.</td></tr>';
+      if (bodyTableBody) bodyTableBody.innerHTML = msg;
+      if (tvTableBody) tvTableBody.innerHTML = msg;
+      return;
+    }
+    if (!manifestRes.ok) throw new Error(`Assets request failed: ${manifestRes.status}`);
+    if (uploadBodyBtn) uploadBodyBtn.disabled = false;
+    if (uploadTVBtn) uploadTVBtn.disabled = false;
+    const configRes = await fetch('/world-config');
+    if (!configRes.ok) throw new Error(`Config request failed: ${configRes.status}`);
     currentManifest = await manifestRes.json();
     const cfg = await configRes.json();
     renderLists(currentManifest, cfg);
@@ -395,12 +420,10 @@ async function loadAssetsAndConfig() {
     updatePreview();
   } catch (err) {
     console.error('Failed to load assets or config', err);
-    if (bodyTableBody) {
-      bodyTableBody.innerHTML = '<tr><td colspan="4">Failed to load assets. Check console and server logs.</td></tr>';
-    }
-    if (tvTableBody) {
-      tvTableBody.innerHTML = '<tr><td colspan="4">Failed to load assets. Check console and server logs.</td></tr>';
-    }
+    adminDebugLog('Failed to load assets or config', err);
+    const msg = '<tr><td colspan="4">Failed to load assets. Check console and server logs.</td></tr>';
+    if (bodyTableBody) bodyTableBody.innerHTML = msg;
+    if (tvTableBody) tvTableBody.innerHTML = msg;
   }
 }
 
