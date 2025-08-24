@@ -13,9 +13,9 @@
     5. Client-side script to load and save settings via the secure API
   - Notes:
     - requires the server to be started with ADMIN_TOKEN for access
-    - uses world_admin.module.js to import Three.js and GLTFLoader from `js/vendor`
-      so the admin interface works without a CDN; update these with the curl
-      commands listed in the project README when a newer release is needed
+    - loads Three.js and GLTFLoader from local `js/vendor` paths with error
+      handlers to aid debugging; update these with the curl commands listed in
+      the project README when a newer release is needed
 -->
 <html lang="en">
 <head>
@@ -135,6 +135,15 @@
     </main>
     <!-- model-viewer is an ES module; load it accordingly so custom element renders previews -->
     <script type="module" src="https://cdn.jsdelivr.net/npm/@google/model-viewer/dist/model-viewer.min.js"></script>
+    <script>
+      // Handle vendor script load errors by logging and notifying the user.
+      function handleScriptError(lib) {
+        console.error(`${lib} failed to load. Verify network access or local file paths.`);
+        alert(`${lib} failed to load. Please check your internet connection or local file paths.`);
+      }
+    </script>
+    <script type="module" src="js/vendor/three.module.js" onerror="handleScriptError('Three.js')"></script>
+    <script type="module" src="js/vendor/GLTFLoader.js" onerror="handleScriptError('GLTFLoader')"></script>
     <script src="js/mingle_navbar.js"></script>
     <script type="module" src="js/world_admin.module.js"></script>
   </body>
