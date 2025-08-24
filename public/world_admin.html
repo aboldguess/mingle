@@ -144,9 +144,10 @@
             </label>
           </div>
           <div>
-            <label>Cam X <input type="range" id="camPosX" min="-1" max="1" step="0.01" value="0"></label>
-            <label>Cam Y <input type="range" id="camPosY" min="-1" max="1" step="0.01" value="0"></label>
-            <label>Cam Z <input type="range" id="camPosZ" min="-1" max="1" step="0.01" value="-0.25"></label>
+            <!-- Expanded position ranges provide greater freedom when aligning the webcam canvas with the TV -->
+            <label>Cam X <input type="range" id="camPosX" min="-5" max="5" step="0.01" value="0"></label>
+            <label>Cam Y <input type="range" id="camPosY" min="-5" max="5" step="0.01" value="0"></label>
+            <label>Cam Z <input type="range" id="camPosZ" min="-5" max="5" step="0.01" value="-0.25"></label>
             <!-- Allow broader scaling of the webcam canvas for atypical layouts -->
             <label>Cam Scale <input type="range" id="camScaleRange" min="0.01" max="20" step="0.01" value="1"></label>
             <label>Cam Rot X
