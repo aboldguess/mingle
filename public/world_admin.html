@@ -121,19 +121,22 @@
             <label>Body X <input type="range" id="bodyPosX" min="-2" max="2" step="0.01" value="0"></label>
             <label>Body Y <input type="range" id="bodyPosY" min="-2" max="2" step="0.01" value="0.8"></label>
             <label>Body Z <input type="range" id="bodyPosZ" min="-2" max="2" step="0.01" value="0"></label>
-            <label>Body Scale <input type="range" id="bodyScaleRange" min="0.1" max="5" step="0.1" value="1"></label>
+            <!-- Extended scale range to accommodate widely varying body model sizes -->
+            <label>Body Scale <input type="range" id="bodyScaleRange" min="0.01" max="20" step="0.01" value="1"></label>
           </div>
           <div>
             <label>TV X <input type="range" id="tvPosX" min="-2" max="2" step="0.01" value="0"></label>
             <label>TV Y <input type="range" id="tvPosY" min="-2" max="2" step="0.01" value="1"></label>
             <label>TV Z <input type="range" id="tvPosZ" min="-2" max="2" step="0.01" value="0"></label>
-            <label>TV Scale <input type="range" id="tvScaleRange" min="0.1" max="5" step="0.1" value="1"></label>
+            <!-- Extended scale range to accommodate widely varying TV model sizes -->
+            <label>TV Scale <input type="range" id="tvScaleRange" min="0.01" max="20" step="0.01" value="1"></label>
           </div>
           <div>
             <label>Cam X <input type="range" id="camPosX" min="-1" max="1" step="0.01" value="0"></label>
             <label>Cam Y <input type="range" id="camPosY" min="-1" max="1" step="0.01" value="0"></label>
             <label>Cam Z <input type="range" id="camPosZ" min="-1" max="1" step="0.01" value="-0.25"></label>
-            <label>Cam Scale <input type="range" id="camScaleRange" min="0.1" max="5" step="0.1" value="1"></label>
+            <!-- Allow broader scaling of the webcam canvas for atypical layouts -->
+            <label>Cam Scale <input type="range" id="camScaleRange" min="0.01" max="20" step="0.01" value="1"></label>
           </div>
         </div>
     <button id="savePlacementBtn" type="button" style="margin-top:10px;">Save and Update User Avatars</button>
