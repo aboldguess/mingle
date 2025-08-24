@@ -41,6 +41,7 @@ const statusEl = document.getElementById('status');
 const viewpointRadios = document.querySelectorAll('input[name="viewpoint"]');
 const instructionsEl = document.getElementById('instructions');
 const instructionsToggle = document.getElementById('instructionsToggle');
+const presetSelect = document.getElementById('avatarPresetSelect');
 // Allow the instructions overlay to be minimised and restored.
 if (instructionsEl && instructionsToggle) {
   instructionsToggle.addEventListener('click', () => {
@@ -59,6 +60,11 @@ let activeCamera = playerCamera;
 let connectedClients = 1;
 // Map of peer connections keyed by socket ID for WebRTC video streams.
 const peerConnections = {};
+// Avatar preset data loaded from the server and mapping of remote selections.
+let avatarPresets = [];
+let manifestData = null;
+let currentPreset = null;
+const remotePresets = {};
 // Local webcam stream so it can be shared with remote peers. A promise is used
 // so that WebRTC setup can await camera availability, ensuring late joiners
 // still transmit video once their stream initialises.
@@ -179,110 +185,109 @@ let webcamRotation = { x: 0, y: 0, z: 0 };
  * none are configured. Applies saved scale and TV offset so avatars start with
  * consistent placement.
  */
-async function initDefaultAssets() {
+async function initDefaultAssets(presetId) {
   try {
-    const [manifestRes, configRes] = await Promise.all([
+    const [manifestRes, configRes, presetsRes] = await Promise.all([
       fetch('/api/assets'),
       fetch('/world-config'),
+      fetch('/api/avatar-presets'),
     ]);
-    const manifest = await manifestRes.json();
+    manifestData = await manifestRes.json();
     const config = await configRes.json();
-    if (config.bodyPosition) {
-      bodyOffset = config.bodyPosition;
+    avatarPresets = await presetsRes.json();
+    if (presetSelect) {
+      presetSelect.innerHTML = '';
+      for (const p of avatarPresets) {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = p.name;
+        presetSelect.appendChild(opt);
+      }
+      presetSelect.addEventListener('change', () => {
+        applyPreset(presetSelect.value);
+      });
     }
-    if (config.tvPosition) {
-      tvOffset = config.tvPosition;
+    // Determine which preset to use: specified id or first available.
+    const chosenId = presetId || (presetSelect ? presetSelect.value : null);
+    currentPreset = avatarPresets.find(p => p.id === chosenId) || avatarPresets[0] || null;
+    if (currentPreset) {
+      applyPresetGlobals(currentPreset);
+    } else {
+      if (config.bodyPosition) bodyOffset = config.bodyPosition;
+      if (config.tvPosition) tvOffset = config.tvPosition;
+      if (config.tvRotation) tvRotation = config.tvRotation;
+      if (config.webcamOffset) webcamOffset = config.webcamOffset;
+      if (config.webcamRotation) webcamRotation = config.webcamRotation;
+      if (config.defaultBodyId) defaultBodyEntry = manifestData.bodies.find(b => b.id === config.defaultBodyId) || null;
+      if (config.defaultTvId) defaultTVEntry = manifestData.tvs.find(t => t.id === config.defaultTvId) || null;
     }
-    if (config.tvRotation) {
-      tvRotation = config.tvRotation;
-    }
-    if (config.webcamOffset) {
-      webcamOffset = config.webcamOffset;
-    }
-    if (config.webcamRotation) {
-      webcamRotation = config.webcamRotation;
-    }
-    // Ensure the webcam plane sits just outside the TV surface. A positive Z offset keeps
-    // the video texture in front of the head cube and avoids it rendering inside the mesh.
+    // Ensure webcam plane sits just outside TV surface
     const halfDepth = (webcamOffset.scale || FALLBACK_TV_SIZE) / 2;
     webcamOffset.z = Math.abs(webcamOffset.z);
     if (webcamOffset.z < halfDepth + WEB_CAM_EPSILON) {
       webcamOffset.z = halfDepth + WEB_CAM_EPSILON;
     }
-    if (config.defaultBodyId) {
-      defaultBodyEntry = manifest.bodies.find(b => b.id === config.defaultBodyId) || null;
-    }
-    if (config.defaultTvId) {
-      defaultTVEntry = manifest.tvs.find(t => t.id === config.defaultTvId) || null;
-    }
   } catch (err) {
-    debugError('Failed to fetch asset manifest or world config', err);
+    debugError('Failed to fetch asset data', err);
   }
 
-  // Load body model or fall back to a primitive
+  loadAvatarAssets();
+  if (currentPreset) {
+    socket.emit('avatarPreset', { presetId: currentPreset.id });
+  }
+}
+
+function applyPresetGlobals(preset) {
+  defaultBodyEntry = manifestData.bodies.find(b => b.id === preset.bodyId) || null;
+  defaultTVEntry = manifestData.tvs.find(t => t.id === preset.tvId) || null;
+  bodyOffset = preset.bodyPosition || bodyOffset;
+  tvOffset = preset.tvPosition || tvOffset;
+  tvRotation = preset.tvRotation || tvRotation;
+  webcamOffset = preset.webcamOffset || webcamOffset;
+  webcamRotation = preset.webcamRotation || webcamRotation;
+  defaultBodyEntry && (defaultBodyEntry.scale = preset.bodyScale);
+  defaultTVEntry && (defaultTVEntry.scale = preset.tvScale);
+}
+
+function loadAvatarAssets() {
+  // Load body model or fallback
   if (defaultBodyEntry) {
-    const bodyItem = document.createElement('a-asset-item');
-    bodyItem.id = 'default-body';
-    bodyItem.src = `/assets/${defaultBodyEntry.filename}`;
-    assetsEl.appendChild(bodyItem);
+    let bodyItem = document.getElementById('default-body');
+    if (!bodyItem) {
+      bodyItem = document.createElement('a-asset-item');
+      bodyItem.id = 'default-body';
+      assetsEl.appendChild(bodyItem);
+    }
+    bodyItem.setAttribute('src', `/assets/${defaultBodyEntry.filename}`);
     avatarBody.setAttribute('gltf-model', '#default-body');
     const bodyScale = Number.isFinite(defaultBodyEntry.scale) && defaultBodyEntry.scale > 0 ? defaultBodyEntry.scale : 1;
     avatarBody.setAttribute('scale', `${bodyScale} ${bodyScale} ${bodyScale}`);
     avatarBody.setAttribute('position', `${bodyOffset.x} ${bodyOffset.y} ${bodyOffset.z}`);
   } else {
-    try {
-      const res = await fetch('/assets/default-body.glb', { method: 'HEAD' });
-      if (res.ok) {
-        defaultBodyEntry = { id: 'default-body', filename: 'default-body.glb', scale: 1 };
-        const bodyItem = document.createElement('a-asset-item');
-        bodyItem.id = 'default-body';
-        bodyItem.src = '/assets/default-body.glb';
-        assetsEl.appendChild(bodyItem);
-        avatarBody.setAttribute('gltf-model', '#default-body');
-        avatarBody.setAttribute('position', `${bodyOffset.x} ${bodyOffset.y} ${bodyOffset.z}`);
-      } else {
-        avatarBody.setAttribute('geometry', 'primitive: box; height: 1.6; width: 0.5; depth: 0.3');
-        avatarBody.setAttribute('material', 'color: #AAAAAA');
-        avatarBody.setAttribute('position', `${bodyOffset.x} ${bodyOffset.y} ${bodyOffset.z}`);
-      }
-    } catch {
-      avatarBody.setAttribute('geometry', 'primitive: box; height: 1.6; width: 0.5; depth: 0.3');
-      avatarBody.setAttribute('material', 'color: #AAAAAA');
-      avatarBody.setAttribute('position', `${bodyOffset.x} ${bodyOffset.y} ${bodyOffset.z}`);
-    }
+    avatarBody.setAttribute('geometry', 'primitive: box; height: 1.6; width: 0.5; depth: 0.3');
+    avatarBody.setAttribute('material', 'color: #AAAAAA');
+    avatarBody.setAttribute('position', `${bodyOffset.x} ${bodyOffset.y} ${bodyOffset.z}`);
   }
 
-  // Load TV model or fall back to a primitive
   const videoEl = document.getElementById('localVideo');
   avatarTV.setAttribute('position', `${tvOffset.x} ${tvOffset.y} ${tvOffset.z}`);
   avatarTV.setAttribute('rotation', `${tvRotation.x} ${tvRotation.y} ${tvRotation.z}`);
   if (defaultTVEntry) {
-    const tvItem = document.createElement('a-asset-item');
-    tvItem.id = 'default-tv';
-    tvItem.src = `/assets/${defaultTVEntry.filename}`;
-    assetsEl.appendChild(tvItem);
+    let tvItem = document.getElementById('default-tv');
+    if (!tvItem) {
+      tvItem = document.createElement('a-asset-item');
+      tvItem.id = 'default-tv';
+      assetsEl.appendChild(tvItem);
+    }
+    tvItem.setAttribute('src', `/assets/${defaultTVEntry.filename}`);
     avatarTV.setAttribute('gltf-model', '#default-tv');
     const tvScale = Number.isFinite(defaultTVEntry.scale) && defaultTVEntry.scale > 0 ? defaultTVEntry.scale : 1;
     avatarTV.setAttribute('scale', `${tvScale} ${tvScale} ${tvScale}`);
   } else {
-    try {
-      const res = await fetch('/assets/default-tv.glb', { method: 'HEAD' });
-      if (res.ok) {
-        defaultTVEntry = { id: 'default-tv', filename: 'default-tv.glb', scale: 1 };
-        const tvItem = document.createElement('a-asset-item');
-        tvItem.id = 'default-tv';
-        tvItem.src = '/assets/default-tv.glb';
-        assetsEl.appendChild(tvItem);
-        avatarTV.setAttribute('gltf-model', '#default-tv');
-      } else {
-        avatarTV.setAttribute('geometry', `primitive: box; height: ${FALLBACK_TV_SIZE}; width: ${FALLBACK_TV_SIZE}; depth: ${FALLBACK_TV_SIZE}`);
-        avatarTV.setAttribute('material', 'color: #222222');
-      }
-    } catch {
-      avatarTV.setAttribute('geometry', `primitive: box; height: ${FALLBACK_TV_SIZE}; width: ${FALLBACK_TV_SIZE}; depth: ${FALLBACK_TV_SIZE}`);
-      avatarTV.setAttribute('material', 'color: #222222');
-    }
+    avatarTV.setAttribute('geometry', `primitive: box; height: ${FALLBACK_TV_SIZE}; width: ${FALLBACK_TV_SIZE}; depth: ${FALLBACK_TV_SIZE}`);
+    avatarTV.setAttribute('material', 'color: #222222');
   }
+
   if (avatarWebcam) {
     avatarWebcam.setAttribute('material', `shader: flat; src: #localVideo`);
     avatarWebcam.setAttribute('position', `${webcamOffset.x} ${webcamOffset.y} ${webcamOffset.z}`);
@@ -290,6 +295,15 @@ async function initDefaultAssets() {
     avatarWebcam.setAttribute('height', webcamOffset.scale);
     avatarWebcam.setAttribute('rotation', `${webcamRotation.x} ${webcamRotation.y} ${webcamRotation.z}`);
   }
+}
+
+function applyPreset(id) {
+  const preset = avatarPresets.find(p => p.id === id);
+  if (!preset) return;
+  currentPreset = preset;
+  applyPresetGlobals(preset);
+  loadAvatarAssets();
+  socket.emit('avatarPreset', { presetId: preset.id });
 }
 
 // Initialise default assets and retain the promise so remote avatar
@@ -688,47 +702,67 @@ socket.on('position', async data => {
 
   let remote = remotes[data.id];
   if (!remote) {
-    // Remote avatar mirrors local structure: body model plus TV head with webcam feed.
+    const preset = avatarPresets.find(p => p.id === remotePresets[data.id]);
+    const bodyEntry = preset ? manifestData.bodies.find(b => b.id === preset.bodyId) : defaultBodyEntry;
+    const tvEntry = preset ? manifestData.tvs.find(t => t.id === preset.tvId) : defaultTVEntry;
+    const bPos = preset ? preset.bodyPosition : bodyOffset;
+    const tPos = preset ? preset.tvPosition : tvOffset;
+    const tRot = preset ? preset.tvRotation : tvRotation;
+    const camOff = preset ? preset.webcamOffset : webcamOffset;
+    const camRotR = preset ? preset.webcamRotation : webcamRotation;
+    const bScale = preset ? preset.bodyScale : (bodyEntry ? bodyEntry.scale : 1);
+    const tScale = preset ? preset.tvScale : (tvEntry ? tvEntry.scale : 1);
+
     const avatarEntity = document.createElement('a-entity');
-    avatarEntity.id = `avatar-${data.id}`; // allow audio entities to attach for spatial sound
+    avatarEntity.id = `avatar-${data.id}`;
 
     const body = document.createElement('a-entity');
-    if (defaultBodyEntry) {
-      body.setAttribute('gltf-model', '#default-body');
-      const bScale = Number.isFinite(defaultBodyEntry.scale) && defaultBodyEntry.scale > 0 ? defaultBodyEntry.scale : 1;
+    if (bodyEntry) {
+      let bodyItem = document.getElementById(bodyEntry.id);
+      if (!bodyItem) {
+        bodyItem = document.createElement('a-asset-item');
+        bodyItem.id = bodyEntry.id;
+        bodyItem.src = `/assets/${bodyEntry.filename}`;
+        assetsEl.appendChild(bodyItem);
+      }
+      body.setAttribute('gltf-model', `#${bodyEntry.id}`);
       body.setAttribute('scale', `${bScale} ${bScale} ${bScale}`);
     } else {
       body.setAttribute('geometry', 'primitive: box; height: 1.6; width: 0.5; depth: 0.3');
       body.setAttribute('material', 'color: #AAAAAA');
     }
-    // Offset the body so its feet touch the ground when the avatar root is at y=0.
-    body.setAttribute('position', `${bodyOffset.x} ${bodyOffset.y} ${bodyOffset.z}`);
+    body.setAttribute('position', `${bPos.x} ${bPos.y} ${bPos.z}`);
 
     const videoEl = document.createElement('video');
     videoEl.id = `video-${data.id}`;
     videoEl.autoplay = true;
     videoEl.playsInline = true;
-    videoEl.muted = true; // audio handled separately
+    videoEl.muted = true;
     assetsEl.appendChild(videoEl);
 
     const tv = document.createElement('a-entity');
-    if (defaultTVEntry) {
-      tv.setAttribute('gltf-model', '#default-tv');
-      const tScale = Number.isFinite(defaultTVEntry.scale) && defaultTVEntry.scale > 0 ? defaultTVEntry.scale : 1;
+    if (tvEntry) {
+      let tvItem = document.getElementById(tvEntry.id);
+      if (!tvItem) {
+        tvItem = document.createElement('a-asset-item');
+        tvItem.id = tvEntry.id;
+        tvItem.src = `/assets/${tvEntry.filename}`;
+        assetsEl.appendChild(tvItem);
+      }
+      tv.setAttribute('gltf-model', `#${tvEntry.id}`);
       tv.setAttribute('scale', `${tScale} ${tScale} ${tScale}`);
     } else {
       tv.setAttribute('geometry', `primitive: box; height: ${FALLBACK_TV_SIZE}; width: ${FALLBACK_TV_SIZE}; depth: ${FALLBACK_TV_SIZE}`);
       tv.setAttribute('material', 'color: #222222');
     }
-    // Position the TV head so the screen (and FPV camera) sit at eye level or saved offset.
-    tv.setAttribute('position', `${tvOffset.x} ${tvOffset.y} ${tvOffset.z}`);
-    tv.setAttribute('rotation', `${tvRotation.x} ${tvRotation.y} ${tvRotation.z}`);
+    tv.setAttribute('position', `${tPos.x} ${tPos.y} ${tPos.z}`);
+    tv.setAttribute('rotation', `${tRot.x} ${tRot.y} ${tRot.z}`);
 
     const camPlane = document.createElement('a-plane');
-    camPlane.setAttribute('position', `${webcamOffset.x} ${webcamOffset.y} ${webcamOffset.z}`);
-    camPlane.setAttribute('width', webcamOffset.scale);
-    camPlane.setAttribute('height', webcamOffset.scale);
-    camPlane.setAttribute('rotation', `${webcamRotation.x} ${webcamRotation.y} ${webcamRotation.z}`);
+    camPlane.setAttribute('position', `${camOff.x} ${camOff.y} ${camOff.z}`);
+    camPlane.setAttribute('width', camOff.scale);
+    camPlane.setAttribute('height', camOff.scale);
+    camPlane.setAttribute('rotation', `${camRotR.x} ${camRotR.y} ${camRotR.z}`);
     camPlane.setAttribute('material', `shader: flat; src: #video-${data.id}`);
     tv.appendChild(camPlane);
 
@@ -768,6 +802,33 @@ socket.on('position', async data => {
     remote.cam.setAttribute('visible', true);
   } else {
     remote.cam.setAttribute('visible', false);
+  }
+});
+
+// Receive avatar preset selections from other clients so remote avatars use the
+// correct models. When a preset changes we drop the existing avatar so the next
+// position update rebuilds it with the new assets.
+socket.on('avatarPreset', ({ id, presetId }) => {
+  remotePresets[id] = presetId;
+  const remote = remotes[id];
+  if (remote) {
+    sceneEl.removeChild(remote.avatar);
+    sceneEl.removeChild(remote.cam);
+    delete remotes[id];
+  }
+});
+
+// Updated preset list broadcast from the server when the admin saves changes.
+socket.on('avatarPresets', list => {
+  avatarPresets = list;
+  if (presetSelect) {
+    presetSelect.innerHTML = '';
+    for (const p of avatarPresets) {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = p.name;
+      presetSelect.appendChild(opt);
+    }
   }
 });
 
