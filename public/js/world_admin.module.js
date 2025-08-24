@@ -4,7 +4,7 @@
  * - Purpose: handle world configuration form interactions for administrators,
  *   manage avatar asset uploads and placement.
  * - Structure:
- *   1. Helper debug logger
+ *   1. Helper debug logger and on-page debug log
  *   2. Load existing config when requested
  *   3. Submit updates back to the server
  *   4. Handle world design (geometry and colour) fields
@@ -34,6 +34,7 @@ function init() {
   const welcomeMessageInput = document.getElementById('welcomeMessage');
   const worldGeometrySelect = document.getElementById('worldGeometry');
   const worldColorInput = document.getElementById('worldColor');
+  const debugLog = document.getElementById('debugLog'); // Div to surface detailed errors for admins
 
 async function loadConfig() {
   const token = tokenInput.value.trim();
@@ -163,11 +164,19 @@ function initThree() {
   }
   animate();
 }
-// Attempt to start the 3D preview, but allow the page to continue even if it fails.
+// Attempt to start the 3D preview. On failure, log details to the debug area so
+// admins can diagnose issues such as unreachable CDNs or CSP blocks.
 try {
   initThree();
 } catch (err) {
-  adminDebugLog('Preview initialization failed', err);
+  const message = `Preview initialization failed: ${err.message}`;
+  const stack = err.stack || 'No stack available';
+  const guidance = 'Typical causes: CDN unreachable or CSP restrictions blocking script execution.';
+  if (debugLog) {
+    if (debugLog.textContent === 'No errors logged.') debugLog.textContent = '';
+    debugLog.textContent += `${message}\n${stack}\n${guidance}\n`;
+  }
+  adminDebugLog(message, err);
   alert('Preview could not start. You can still upload assets.');
 }
 
