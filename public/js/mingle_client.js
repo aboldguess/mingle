@@ -206,6 +206,24 @@ async function initDefaultAssets(presetId) {
       presetSelect.addEventListener('change', () => {
         applyPreset(presetSelect.value);
       });
+      // Prevent pointer lock from immediately closing the dropdown by
+      // absorbing pointer events and pausing look-controls while the
+      // selector is focused. This keeps the avatar menu open long
+      // enough for a selection to be made.
+      presetSelect.addEventListener('pointerdown', evt => {
+        evt.stopPropagation();
+        if (document.pointerLockElement) {
+          document.exitPointerLock();
+        }
+        const lc = playerCamera.components['look-controls'];
+        if (lc) lc.pause();
+        debugLog('Avatar preset selector focused');
+      });
+      presetSelect.addEventListener('blur', () => {
+        const lc = playerCamera.components['look-controls'];
+        if (lc) lc.play();
+        debugLog('Avatar preset selector blurred');
+      });
     }
     // Determine which preset to use: specified id or first available.
     const chosenId = presetId || (presetSelect ? presetSelect.value : null);
