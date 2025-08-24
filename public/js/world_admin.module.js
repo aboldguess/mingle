@@ -388,7 +388,9 @@ function renderLists(manifest, config) {
  */
 async function loadAssetsAndConfig() {
   try {
-    const manifestRes = await fetch('/api/assets');
+    // Always bypass caches so newly uploaded files and config changes appear
+    // immediately without requiring a full page refresh.
+    const manifestRes = await fetch('/api/assets', { cache: 'no-store' });
     if (manifestRes.status === 503) {
       if (uploadBodyBtn) uploadBodyBtn.disabled = true;
       if (uploadTVBtn) uploadTVBtn.disabled = true;
@@ -401,10 +403,22 @@ async function loadAssetsAndConfig() {
     if (!manifestRes.ok) throw new Error(`Assets request failed: ${manifestRes.status}`);
     if (uploadBodyBtn) uploadBodyBtn.disabled = false;
     if (uploadTVBtn) uploadTVBtn.disabled = false;
-    const configRes = await fetch('/world-config');
-    if (!configRes.ok) throw new Error(`Config request failed: ${configRes.status}`);
     currentManifest = await manifestRes.json();
-    const cfg = await configRes.json();
+
+    // Fetch the world configuration separately so asset listing still works
+    // even if the config endpoint fails.
+    let cfg = {};
+    try {
+      const configRes = await fetch('/world-config', { cache: 'no-store' });
+      if (configRes.ok) {
+        cfg = await configRes.json();
+      } else {
+        adminDebugLog(`Config request failed: ${configRes.status}`);
+      }
+    } catch (err) {
+      adminDebugLog('Config fetch failed', err);
+    }
+
     renderLists(currentManifest, cfg);
     if (cfg.tvPosition) {
       tvPosX.value = String(cfg.tvPosition.x);
