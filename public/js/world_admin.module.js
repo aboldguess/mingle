@@ -10,7 +10,8 @@
  *   4. Handle world design (geometry and colour) fields
  *   5. Upload body and TV models and disable uploads when admin token is missing
  *   6. List uploaded assets with metadata, selection radios and delete controls
- *   7. Three.js preview for aligning TV and webcam canvas before saving
+ *   7. Three.js preview for aligning body, TV and webcam canvas before saving
+ *      with basic mouse controls (drag to orbit, scroll to zoom)
  * - Notes: requires the admin token set on the server. Token is provided via the form.
  *         imports Three.js and GLTFLoader locally from `vendor` to work offline.
  */
@@ -53,6 +54,11 @@ async function loadConfig() {
     welcomeMessageInput.value = data.welcomeMessage;
     worldGeometrySelect.value = data.worldGeometry || 'plane';
     worldColorInput.value = data.worldColor || '#00aaff';
+    if (data.bodyPosition) {
+      bodyPosX.value = String(data.bodyPosition.x);
+      bodyPosY.value = String(data.bodyPosition.y);
+      bodyPosZ.value = String(data.bodyPosition.z);
+    }
     if (data.tvPosition) {
       tvPosX.value = String(data.tvPosition.x);
       tvPosY.value = String(data.tvPosition.y);
@@ -69,6 +75,9 @@ async function loadConfig() {
       selectedTV = currentManifest.tvs.find(t => t.id === data.defaultTvId) || null;
       if (selectedTV) {
         tvScaleRange.value = String(selectedTV.scale);
+      }
+      if (selectedBody) {
+        bodyScaleRange.value = String(selectedBody.scale);
       }
       updatePreview();
     }
@@ -124,6 +133,10 @@ const uploadTVBtn = document.getElementById('uploadTVBtn');
 const bodyTableBody = document.getElementById('bodyTableBody');
 const tvTableBody = document.getElementById('tvTableBody');
 const previewCanvas = document.getElementById('previewCanvas');
+const bodyScaleRange = document.getElementById('bodyScaleRange');
+const bodyPosX = document.getElementById('bodyPosX');
+const bodyPosY = document.getElementById('bodyPosY');
+const bodyPosZ = document.getElementById('bodyPosZ');
 const tvScaleRange = document.getElementById('tvScaleRange');
 const tvPosX = document.getElementById('tvPosX');
 const tvPosY = document.getElementById('tvPosY');
@@ -158,6 +171,40 @@ function initThree() {
   const light = new THREE.HemisphereLight(0xffffff, 0x444444, 1);
   scene.add(light);
   loader = new GLTFLoader();
+  // Basic orbit controls: scroll wheel zooms, dragging rotates around the avatar.
+  const target = new THREE.Vector3(0, 1, 0);
+  let isDragging = false;
+  let prevX = 0;
+  let prevY = 0;
+  previewCanvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const dir = new THREE.Vector3().subVectors(camera.position, target);
+    const len = dir.length() + e.deltaY * 0.01;
+    dir.setLength(Math.min(Math.max(len, 0.5), 10));
+    camera.position.copy(target.clone().add(dir));
+    camera.lookAt(target);
+  });
+  previewCanvas.addEventListener('mousedown', (e) => {
+    isDragging = true;
+    prevX = e.clientX;
+    prevY = e.clientY;
+  });
+  window.addEventListener('mouseup', () => { isDragging = false; });
+  previewCanvas.addEventListener('mousemove', (e) => {
+    if (!isDragging) return;
+    const deltaX = e.clientX - prevX;
+    const deltaY = e.clientY - prevY;
+    prevX = e.clientX;
+    prevY = e.clientY;
+    const offset = new THREE.Vector3().subVectors(camera.position, target);
+    const spherical = new THREE.Spherical().setFromVector3(offset);
+    spherical.theta -= deltaX * 0.005;
+    spherical.phi -= deltaY * 0.005;
+    spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi));
+    offset.setFromSpherical(spherical);
+    camera.position.copy(target.clone().add(offset));
+    camera.lookAt(target);
+  });
   function animate() {
     requestAnimationFrame(animate);
     renderer.render(scene, camera);
@@ -212,7 +259,8 @@ function updatePreview() {
   clearScene();
   loader.load(`/assets/${selectedBody.filename}`, (g) => {
     bodyMesh = g.scene;
-    bodyMesh.scale.setScalar(selectedBody.scale);
+    bodyMesh.scale.setScalar(parseFloat(bodyScaleRange.value));
+    bodyMesh.position.set(parseFloat(bodyPosX.value), parseFloat(bodyPosY.value), parseFloat(bodyPosZ.value));
     scene.add(bodyMesh);
   });
   loader.load(`/assets/${selectedTV.filename}`, async (g) => {
@@ -338,8 +386,9 @@ function renderLists(manifest, config) {
     if (config.defaultBodyId === b.id) {
       radio.checked = true;
       selectedBody = b;
+      bodyScaleRange.value = String(b.scale);
     }
-    radio.addEventListener('change', () => { selectedBody = b; updatePreview(); });
+    radio.addEventListener('change', () => { selectedBody = b; bodyScaleRange.value = String(b.scale); updatePreview(); });
     selectCell.appendChild(radio);
 
     const deleteCell = document.createElement('td');
@@ -434,6 +483,11 @@ async function loadAssetsAndConfig() {
     }
 
     renderLists(currentManifest, cfg);
+    if (cfg.bodyPosition) {
+      bodyPosX.value = String(cfg.bodyPosition.x);
+      bodyPosY.value = String(cfg.bodyPosition.y);
+      bodyPosZ.value = String(cfg.bodyPosition.z);
+    }
     if (cfg.tvPosition) {
       tvPosX.value = String(cfg.tvPosition.x);
       tvPosY.value = String(cfg.tvPosition.y);
@@ -444,6 +498,9 @@ async function loadAssetsAndConfig() {
       camPosY.value = String(cfg.webcamOffset.y);
       camPosZ.value = String(cfg.webcamOffset.z);
       camScaleRange.value = String(cfg.webcamOffset.scale);
+    }
+    if (selectedBody) {
+      bodyScaleRange.value = String(selectedBody.scale);
     }
     updatePreview();
   } catch (err) {
@@ -471,6 +528,19 @@ if (uploadTVBtn) uploadTVBtn.addEventListener('click', () => uploadAsset('tv'));
     });
   }
 });
+[bodyPosX, bodyPosY, bodyPosZ, bodyScaleRange].forEach((input) => {
+  if (input) {
+    input.addEventListener('input', () => {
+      if (bodyMesh) {
+        if (input === bodyScaleRange) {
+          bodyMesh.scale.setScalar(parseFloat(bodyScaleRange.value));
+        } else {
+          bodyMesh.position.set(parseFloat(bodyPosX.value), parseFloat(bodyPosY.value), parseFloat(bodyPosZ.value));
+        }
+      }
+    });
+  }
+});
 [camPosX, camPosY, camPosZ, camScaleRange].forEach((input) => {
   if (input) {
     input.addEventListener('input', () => {
@@ -492,6 +562,11 @@ async function savePlacement() {
     return;
   }
   try {
+    await fetch(`/api/assets/body/${selectedBody.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'x-admin-token': token },
+      body: JSON.stringify({ scale: parseFloat(bodyScaleRange.value) }),
+    });
     await fetch(`/api/assets/tv/${selectedTV.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'x-admin-token': token },
@@ -500,6 +575,11 @@ async function savePlacement() {
     const cfg = {
       defaultBodyId: selectedBody.id,
       defaultTvId: selectedTV.id,
+      bodyPosition: {
+        x: parseFloat(bodyPosX.value),
+        y: parseFloat(bodyPosY.value),
+        z: parseFloat(bodyPosZ.value),
+      },
       tvPosition: {
         x: parseFloat(tvPosX.value),
         y: parseFloat(tvPosY.value),

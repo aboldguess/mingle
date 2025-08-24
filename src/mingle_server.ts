@@ -91,6 +91,7 @@ interface WorldConfig {
   worldColor: string;
   defaultBodyId?: string;
   defaultTvId?: string;
+  bodyPosition?: { x: number; y: number; z: number };
   tvPosition?: { x: number; y: number; z: number };
   webcamOffset?: { x: number; y: number; z: number; scale: number };
 }
@@ -102,10 +103,12 @@ const worldConfig: WorldConfig = {
   worldColor: '#00aaff',
   defaultBodyId: undefined,
   defaultTvId: undefined,
+  bodyPosition: { x: 0, y: 0.8, z: 0 },
   // Default placement for the simple fallback grey cuboid body and black TV
-  // head. The TV's centre sits exactly on top of the body so the head appears
-  // attached. The webcam plane is positioned slightly in front of the TV's
-  // forward (+Z) face so the video texture renders cleanly without z-fighting.
+  // head. `bodyPosition` offsets the body so its feet rest on the ground. The
+  // TV's centre sits exactly on top of the body so the head appears attached.
+  // The webcam plane is positioned slightly in front of the TV's forward (+Z)
+  // face so the video texture renders cleanly without z-fighting.
   tvPosition: { x: 0, y: 1.6, z: 0 },
   webcamOffset: { x: 0, y: 0, z: 0.251, scale: 0.5 },
 };
@@ -290,7 +293,7 @@ app.get('/world-config', (_req, res) => {
 
 if (ADMIN_TOKEN) {
   app.post('/world-config', verifyAdmin, (req, res) => {
-    const { worldName, maxParticipants, welcomeMessage, worldGeometry, worldColor, defaultBodyId, defaultTvId, tvPosition, webcamOffset } = req.body;
+    const { worldName, maxParticipants, welcomeMessage, worldGeometry, worldColor, defaultBodyId, defaultTvId, bodyPosition, tvPosition, webcamOffset } = req.body;
     if (typeof worldName === 'string') {
       worldConfig.worldName = worldName;
     }
@@ -312,6 +315,14 @@ if (ADMIN_TOKEN) {
     }
     if (typeof defaultTvId === 'string') {
       worldConfig.defaultTvId = defaultTvId;
+    }
+    if (bodyPosition && typeof bodyPosition === 'object') {
+      const { x, y, z } = bodyPosition;
+      worldConfig.bodyPosition = {
+        x: typeof x === 'number' ? x : worldConfig.bodyPosition?.x || 0,
+        y: typeof y === 'number' ? y : worldConfig.bodyPosition?.y || 0,
+        z: typeof z === 'number' ? z : worldConfig.bodyPosition?.z || 0,
+      };
     }
     if (tvPosition && typeof tvPosition === 'object') {
       const { x, y, z } = tvPosition;
