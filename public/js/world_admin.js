@@ -153,7 +153,16 @@ function initThree() {
   }
   animate();
 }
-initThree();
+// Attempt to start the 3D preview, but allow the page to continue even if it fails.
+try {
+  initThree();
+} catch (err) {
+  adminDebugLog('Preview initialization failed', err);
+  alert('Preview could not start. You can still upload assets.');
+}
+
+// Load manifest and config whether or not the preview initializes successfully.
+loadAssetsAndConfig();
 
 async function ensureVideoTexture() {
   if (videoTexture) return videoTexture;
@@ -389,7 +398,6 @@ async function loadAssetsAndConfig() {
     }
   }
 }
-loadAssetsAndConfig();
 
 if (uploadBodyBtn) uploadBodyBtn.addEventListener('click', () => uploadAsset('body'));
 if (uploadTVBtn) uploadTVBtn.addEventListener('click', () => uploadAsset('tv'));
