@@ -561,16 +561,23 @@ async function savePlacement() {
     alert('Select token, body and TV');
     return;
   }
+  const bodyScale = parseFloat(bodyScaleRange.value);
+  const tvScale = parseFloat(tvScaleRange.value);
+  const camScale = parseFloat(camScaleRange.value);
+  if (![bodyScale, tvScale, camScale].every(n => Number.isFinite(n) && n > 0)) {
+    alert('Invalid scale values');
+    return;
+  }
   try {
     await fetch(`/api/assets/body/${selectedBody.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'x-admin-token': token },
-      body: JSON.stringify({ scale: parseFloat(bodyScaleRange.value) }),
+      body: JSON.stringify({ scale: bodyScale }),
     });
     await fetch(`/api/assets/tv/${selectedTV.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'x-admin-token': token },
-      body: JSON.stringify({ scale: parseFloat(tvScaleRange.value) }),
+      body: JSON.stringify({ scale: tvScale }),
     });
     const cfg = {
       defaultBodyId: selectedBody.id,
@@ -589,7 +596,7 @@ async function savePlacement() {
         x: parseFloat(camPosX.value),
         y: parseFloat(camPosY.value),
         z: parseFloat(camPosZ.value),
-        scale: parseFloat(camScaleRange.value),
+        scale: camScale,
       },
     };
     await fetch('/world-config', {
