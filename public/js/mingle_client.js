@@ -3,11 +3,11 @@
  * Mini README:
  * - Purpose: client-side logic for the Mingle prototype. Handles local avatar
  *   movement, webcam streaming, and position synchronisation with the server.
- *   Default body and TV models are loaded from the server's world configuration
- *   and asset manifest. If none are configured, the client falls back to
- *   `default-body.glb` / `default-tv.glb` or simple box primitives. A plane
- *   representing the webcam feed is positioned relative to the TV using
- *   offsets from the world configuration.
+ *   Default body and TV models plus their placement offsets are loaded from
+ *   the server's world configuration and asset manifest. If none are
+ *   configured, the client falls back to `default-body.glb` / `default-tv.glb`
+ *   or simple box primitives. A plane representing the webcam feed is
+ *   positioned relative to the TV using offsets from the world configuration.
  * - Structure:
  *   1. Socket and DOM initialisation (unique player colour, random spawn,
  *      HTTPS warning)
@@ -160,6 +160,7 @@ let defaultTVEntry = null;
 const FALLBACK_TV_SIZE = 0.5;
 const WEB_CAM_EPSILON = 0.001; // slight offset so the plane renders on the surface
 // Stored offset for positioning the TV relative to the body and webcam relative to the TV.
+let bodyOffset = { x: 0, y: 0.8, z: 0 };
 let tvOffset = { x: 0, y: 1.6, z: 0 };
 let webcamOffset = {
   x: 0,
@@ -183,6 +184,9 @@ async function initDefaultAssets() {
     ]);
     const manifest = await manifestRes.json();
     const config = await configRes.json();
+    if (config.bodyPosition) {
+      bodyOffset = config.bodyPosition;
+    }
     if (config.tvPosition) {
       tvOffset = config.tvPosition;
     }
@@ -207,6 +211,7 @@ async function initDefaultAssets() {
     assetsEl.appendChild(bodyItem);
     avatarBody.setAttribute('gltf-model', '#default-body');
     avatarBody.setAttribute('scale', `${defaultBodyEntry.scale} ${defaultBodyEntry.scale} ${defaultBodyEntry.scale}`);
+    avatarBody.setAttribute('position', `${bodyOffset.x} ${bodyOffset.y} ${bodyOffset.z}`);
   } else {
     try {
       const res = await fetch('/assets/default-body.glb', { method: 'HEAD' });
@@ -217,13 +222,16 @@ async function initDefaultAssets() {
         bodyItem.src = '/assets/default-body.glb';
         assetsEl.appendChild(bodyItem);
         avatarBody.setAttribute('gltf-model', '#default-body');
+        avatarBody.setAttribute('position', `${bodyOffset.x} ${bodyOffset.y} ${bodyOffset.z}`);
       } else {
         avatarBody.setAttribute('geometry', 'primitive: box; height: 1.6; width: 0.5; depth: 0.3');
         avatarBody.setAttribute('material', 'color: #AAAAAA');
+        avatarBody.setAttribute('position', `${bodyOffset.x} ${bodyOffset.y} ${bodyOffset.z}`);
       }
     } catch {
       avatarBody.setAttribute('geometry', 'primitive: box; height: 1.6; width: 0.5; depth: 0.3');
       avatarBody.setAttribute('material', 'color: #AAAAAA');
+      avatarBody.setAttribute('position', `${bodyOffset.x} ${bodyOffset.y} ${bodyOffset.z}`);
     }
   }
 
@@ -664,7 +672,7 @@ socket.on('position', async data => {
       body.setAttribute('material', 'color: #AAAAAA');
     }
     // Offset the body so its feet touch the ground when the avatar root is at y=0.
-    body.setAttribute('position', '0 0.8 0');
+    body.setAttribute('position', `${bodyOffset.x} ${bodyOffset.y} ${bodyOffset.z}`);
 
     const videoEl = document.createElement('video');
     videoEl.id = `video-${data.id}`;
