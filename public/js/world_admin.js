@@ -140,6 +140,11 @@ let camera = null;
 let loader = null;
 function initThree() {
   if (!previewCanvas) return;
+  // Bail out early if the GLTFLoader dependency failed to load. Without this
+  // check `new THREE.GLTFLoader()` would throw and break the admin page.
+  if (!THREE || !THREE.GLTFLoader) {
+    throw new Error('GLTFLoader missing');
+  }
   renderer = new THREE.WebGLRenderer({ canvas: previewCanvas, alpha: true });
   scene = new THREE.Scene();
   camera = new THREE.PerspectiveCamera(45, previewCanvas.width / previewCanvas.height, 0.1, 100);
