@@ -170,6 +170,8 @@ let webcamOffset = {
   scale: FALLBACK_TV_SIZE,
 };
 let tvRotation = { x: 0, y: 0, z: 0 };
+// Allow rotating the webcam plane relative to the TV head for custom layouts.
+let webcamRotation = { x: 0, y: 0, z: 0 };
 
 /**
  * Fetch world configuration and asset manifest to determine which body and TV
@@ -196,6 +198,9 @@ async function initDefaultAssets() {
     }
     if (config.webcamOffset) {
       webcamOffset = config.webcamOffset;
+    }
+    if (config.webcamRotation) {
+      webcamRotation = config.webcamRotation;
     }
     // Ensure the webcam plane sits just outside the TV surface. A positive Z offset keeps
     // the video texture in front of the head cube and avoids it rendering inside the mesh.
@@ -283,6 +288,7 @@ async function initDefaultAssets() {
     avatarWebcam.setAttribute('position', `${webcamOffset.x} ${webcamOffset.y} ${webcamOffset.z}`);
     avatarWebcam.setAttribute('width', webcamOffset.scale);
     avatarWebcam.setAttribute('height', webcamOffset.scale);
+    avatarWebcam.setAttribute('rotation', `${webcamRotation.x} ${webcamRotation.y} ${webcamRotation.z}`);
   }
 }
 
@@ -717,6 +723,7 @@ socket.on('position', async data => {
     camPlane.setAttribute('position', `${webcamOffset.x} ${webcamOffset.y} ${webcamOffset.z}`);
     camPlane.setAttribute('width', webcamOffset.scale);
     camPlane.setAttribute('height', webcamOffset.scale);
+    camPlane.setAttribute('rotation', `${webcamRotation.x} ${webcamRotation.y} ${webcamRotation.z}`);
     camPlane.setAttribute('material', `shader: flat; src: #video-${data.id}`);
     tv.appendChild(camPlane);
 

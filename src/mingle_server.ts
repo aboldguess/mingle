@@ -95,6 +95,7 @@ interface WorldConfig {
   tvPosition?: { x: number; y: number; z: number };
   tvRotation?: { x: number; y: number; z: number };
   webcamOffset?: { x: number; y: number; z: number; scale: number };
+  webcamRotation?: { x: number; y: number; z: number };
 }
 const worldConfig: WorldConfig = {
   worldName: 'Mingle World',
@@ -117,6 +118,9 @@ const worldConfig: WorldConfig = {
   tvPosition: { x: 0, y: 1.6, z: 0 },
   tvRotation: { x: 0, y: 0, z: 0 },
   webcamOffset: { x: 0, y: 0, z: 0.251, scale: 0.5 },
+  // Rotation applied to the webcam plane (degrees) so feeds can be aligned
+  // with custom TV models or corrected when sources appear flipped.
+  webcamRotation: { x: 0, y: 0, z: 0 },
 };
 
 // Avatar asset storage lives under /public/assets. Metadata about uploaded
@@ -312,7 +316,7 @@ app.get('/world-config', (_req, res) => {
 
 if (ADMIN_TOKEN) {
   app.post('/world-config', verifyAdmin, (req, res) => {
-    const { worldName, maxParticipants, welcomeMessage, worldGeometry, worldColor, defaultBodyId, defaultTvId, bodyPosition, tvPosition, tvRotation, webcamOffset } = req.body;
+    const { worldName, maxParticipants, welcomeMessage, worldGeometry, worldColor, defaultBodyId, defaultTvId, bodyPosition, tvPosition, tvRotation, webcamOffset, webcamRotation } = req.body;
     if (typeof worldName === 'string') {
       worldConfig.worldName = worldName;
     }
@@ -366,6 +370,14 @@ if (ADMIN_TOKEN) {
         y: typeof y === 'number' ? y : worldConfig.webcamOffset?.y || 0,
         z: typeof z === 'number' ? z : worldConfig.webcamOffset?.z || 0,
         scale: typeof scale === 'number' ? scale : worldConfig.webcamOffset?.scale || 1,
+      };
+    }
+    if (webcamRotation && typeof webcamRotation === 'object') {
+      const { x, y, z } = webcamRotation;
+      worldConfig.webcamRotation = {
+        x: typeof x === 'number' ? x : worldConfig.webcamRotation?.x || 0,
+        y: typeof y === 'number' ? y : worldConfig.webcamRotation?.y || 0,
+        z: typeof z === 'number' ? z : worldConfig.webcamRotation?.z || 0,
       };
     }
     console.log('World configuration updated:', worldConfig);
