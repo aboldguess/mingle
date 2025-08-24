@@ -149,6 +149,18 @@
             <label>Cam Z <input type="range" id="camPosZ" min="-1" max="1" step="0.01" value="-0.25"></label>
             <!-- Allow broader scaling of the webcam canvas for atypical layouts -->
             <label>Cam Scale <input type="range" id="camScaleRange" min="0.01" max="20" step="0.01" value="1"></label>
+            <label>Cam Rot X
+              <input type="range" id="camRotX" min="-180" max="180" step="1" value="0">
+              <input type="number" id="camRotXNum" min="-180" max="180" step="1" value="0" style="width:60px;">
+            </label>
+            <label>Cam Rot Y
+              <input type="range" id="camRotY" min="-180" max="180" step="1" value="0">
+              <input type="number" id="camRotYNum" min="-180" max="180" step="1" value="0" style="width:60px;">
+            </label>
+            <label>Cam Rot Z
+              <input type="range" id="camRotZ" min="-180" max="180" step="1" value="0">
+              <input type="number" id="camRotZNum" min="-180" max="180" step="1" value="0" style="width:60px;">
+            </label>
           </div>
         </div>
     <button id="savePlacementBtn" type="button" style="margin-top:10px;">Save and Update User Avatars</button>

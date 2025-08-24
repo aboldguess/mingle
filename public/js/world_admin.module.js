@@ -78,6 +78,14 @@ async function loadConfig() {
       camPosZ.value = String(data.webcamOffset.z);
       camScaleRange.value = String(data.webcamOffset.scale);
     }
+    if (data.webcamRotation) {
+      camRotX.value = String(data.webcamRotation.x);
+      camRotY.value = String(data.webcamRotation.y);
+      camRotZ.value = String(data.webcamRotation.z);
+      camRotXNum.value = camRotX.value;
+      camRotYNum.value = camRotY.value;
+      camRotZNum.value = camRotZ.value;
+    }
     if (currentManifest) {
       selectedBody = currentManifest.bodies.find(b => b.id === data.defaultBodyId) || null;
       selectedTV = currentManifest.tvs.find(t => t.id === data.defaultTvId) || null;
@@ -159,6 +167,13 @@ const camPosX = document.getElementById('camPosX');
 const camPosY = document.getElementById('camPosY');
 const camPosZ = document.getElementById('camPosZ');
 const camScaleRange = document.getElementById('camScaleRange');
+// Webcam rotation sliders and numeric inputs allow precise canvas alignment.
+const camRotX = document.getElementById('camRotX');
+const camRotY = document.getElementById('camRotY');
+const camRotZ = document.getElementById('camRotZ');
+const camRotXNum = document.getElementById('camRotXNum');
+const camRotYNum = document.getElementById('camRotYNum');
+const camRotZNum = document.getElementById('camRotZNum');
 const savePlacementBtn = document.getElementById('savePlacementBtn');
 
 let currentManifest = null;
@@ -254,21 +269,37 @@ function updateTVRotation() {
   }
 }
 
+// Adjust webcam plane rotation in the preview when sliders or numeric inputs change.
+function updateCamRotation() {
+  if (camPlane) {
+    camPlane.rotation.set(
+      THREE.MathUtils.degToRad(parseFloat(camRotX.value)),
+      THREE.MathUtils.degToRad(parseFloat(camRotY.value)),
+      THREE.MathUtils.degToRad(parseFloat(camRotZ.value)),
+    );
+  }
+}
+
 function bindRangeAndNumber(rangeEl, numberEl) {
   if (!rangeEl || !numberEl) return;
   rangeEl.addEventListener('input', () => {
     numberEl.value = rangeEl.value;
     updateTVRotation();
+    updateCamRotation();
   });
   numberEl.addEventListener('input', () => {
     rangeEl.value = numberEl.value;
     updateTVRotation();
+    updateCamRotation();
   });
 }
 
 bindRangeAndNumber(tvRotX, tvRotXNum);
 bindRangeAndNumber(tvRotY, tvRotYNum);
 bindRangeAndNumber(tvRotZ, tvRotZNum);
+bindRangeAndNumber(camRotX, camRotXNum);
+bindRangeAndNumber(camRotY, camRotYNum);
+bindRangeAndNumber(camRotZ, camRotZNum);
 
 async function ensureVideoTexture() {
   if (videoTexture) return videoTexture;
@@ -323,6 +354,11 @@ function updatePreview() {
       camPlane = new THREE.Mesh(planeGeom, planeMat);
       camPlane.position.set(parseFloat(camPosX.value), parseFloat(camPosY.value), parseFloat(camPosZ.value));
       camPlane.scale.setScalar(parseFloat(camScaleRange.value));
+      camPlane.rotation.set(
+        THREE.MathUtils.degToRad(parseFloat(camRotX.value)),
+        THREE.MathUtils.degToRad(parseFloat(camRotY.value)),
+        THREE.MathUtils.degToRad(parseFloat(camRotZ.value)),
+      );
       tvGroup.add(camPlane);
     }
   });
@@ -552,6 +588,14 @@ async function loadAssetsAndConfig() {
       camPosZ.value = String(cfg.webcamOffset.z);
       camScaleRange.value = String(cfg.webcamOffset.scale);
     }
+    if (cfg.webcamRotation) {
+      camRotX.value = String(cfg.webcamRotation.x);
+      camRotY.value = String(cfg.webcamRotation.y);
+      camRotZ.value = String(cfg.webcamRotation.z);
+      camRotXNum.value = camRotX.value;
+      camRotYNum.value = camRotY.value;
+      camRotZNum.value = camRotZ.value;
+    }
     if (selectedBody) {
       bodyScaleRange.value = String(selectedBody.scale);
     }
@@ -594,14 +638,16 @@ if (uploadTVBtn) uploadTVBtn.addEventListener('click', () => uploadAsset('tv'));
     });
   }
 });
-[camPosX, camPosY, camPosZ, camScaleRange].forEach((input) => {
+[camPosX, camPosY, camPosZ, camScaleRange, camRotX, camRotY, camRotZ].forEach((input) => {
   if (input) {
     input.addEventListener('input', () => {
       if (camPlane) {
         if (input === camScaleRange) {
           camPlane.scale.setScalar(parseFloat(camScaleRange.value));
-        } else {
+        } else if (input === camPosX || input === camPosY || input === camPosZ) {
           camPlane.position.set(parseFloat(camPosX.value), parseFloat(camPosY.value), parseFloat(camPosZ.value));
+        } else {
+          updateCamRotation();
         }
       }
     });
@@ -655,6 +701,11 @@ async function savePlacement() {
         y: parseFloat(camPosY.value),
         z: parseFloat(camPosZ.value),
         scale: camScale,
+      },
+      webcamRotation: {
+        x: parseFloat(camRotX.value),
+        y: parseFloat(camRotY.value),
+        z: parseFloat(camRotZ.value),
       },
     };
     await fetch('/world-config', {
