@@ -149,6 +149,20 @@ function readManifest(): AssetManifest {
   }
 
   let changed = false;
+  const dedupe = (list: AssetEntry[]) => {
+    const seen = new Set<string>();
+    for (let i = list.length - 1; i >= 0; i--) {
+      const filename = list[i].filename;
+      if (seen.has(filename)) {
+        list.splice(i, 1);
+        changed = true;
+      } else {
+        seen.add(filename);
+      }
+    }
+  };
+  dedupe(manifest.bodies);
+  dedupe(manifest.tvs);
   const syncDir = (dir: string, subdir: 'bodies' | 'tvs', list: AssetEntry[]) => {
     const existing = new Map(list.map(e => [e.filename, e]));
     const files = fs.existsSync(dir) ? fs.readdirSync(dir) : [];
