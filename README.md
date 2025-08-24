@@ -75,6 +75,23 @@ npm start
 # then browse to http://<host>:8080/world_admin.html and enter the token
 ```
 
+#### Updating Three.js vendor files
+
+The admin page loads Three.js and GLTFLoader from `public/js/vendor` instead of
+CDN URLs. Refresh them occasionally to pick up upstream fixes:
+
+##### Linux / Raspberry Pi
+```bash
+curl -L -o public/js/vendor/three.module.js https://raw.githubusercontent.com/mrdoob/three.js/master/build/three.module.js
+curl -L -o public/js/vendor/GLTFLoader.js https://raw.githubusercontent.com/mrdoob/three.js/master/examples/jsm/loaders/GLTFLoader.js
+```
+
+##### Windows (PowerShell)
+```powershell
+Invoke-WebRequest https://raw.githubusercontent.com/mrdoob/three.js/master/build/three.module.js -OutFile public/js/vendor/three.module.js
+Invoke-WebRequest https://raw.githubusercontent.com/mrdoob/three.js/master/examples/jsm/loaders/GLTFLoader.js -OutFile public/js/vendor/GLTFLoader.js
+```
+
 Once running, the server logs every accessible address, e.g.
 `http://192.168.1.10:8080`. Open one of these URLs from any device on the same
 network. Mobile browsers require HTTPS to access device sensors; generate the
