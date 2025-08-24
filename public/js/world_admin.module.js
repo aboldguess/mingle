@@ -64,6 +64,14 @@ async function loadConfig() {
       tvPosY.value = String(data.tvPosition.y);
       tvPosZ.value = String(data.tvPosition.z);
     }
+    if (data.tvRotation) {
+      tvRotX.value = String(data.tvRotation.x);
+      tvRotY.value = String(data.tvRotation.y);
+      tvRotZ.value = String(data.tvRotation.z);
+      tvRotXNum.value = tvRotX.value;
+      tvRotYNum.value = tvRotY.value;
+      tvRotZNum.value = tvRotZ.value;
+    }
     if (data.webcamOffset) {
       camPosX.value = String(data.webcamOffset.x);
       camPosY.value = String(data.webcamOffset.y);
@@ -141,6 +149,12 @@ const tvScaleRange = document.getElementById('tvScaleRange');
 const tvPosX = document.getElementById('tvPosX');
 const tvPosY = document.getElementById('tvPosY');
 const tvPosZ = document.getElementById('tvPosZ');
+const tvRotX = document.getElementById('tvRotX');
+const tvRotY = document.getElementById('tvRotY');
+const tvRotZ = document.getElementById('tvRotZ');
+const tvRotXNum = document.getElementById('tvRotXNum');
+const tvRotYNum = document.getElementById('tvRotYNum');
+const tvRotZNum = document.getElementById('tvRotZNum');
 const camPosX = document.getElementById('camPosX');
 const camPosY = document.getElementById('camPosY');
 const camPosZ = document.getElementById('camPosZ');
@@ -230,6 +244,32 @@ try {
 // Load manifest and config whether or not the preview initializes successfully.
   loadAssetsAndConfig();
 
+function updateTVRotation() {
+  if (tvGroup) {
+    tvGroup.rotation.set(
+      THREE.MathUtils.degToRad(parseFloat(tvRotX.value)),
+      THREE.MathUtils.degToRad(parseFloat(tvRotY.value)),
+      THREE.MathUtils.degToRad(parseFloat(tvRotZ.value)),
+    );
+  }
+}
+
+function bindRangeAndNumber(rangeEl, numberEl) {
+  if (!rangeEl || !numberEl) return;
+  rangeEl.addEventListener('input', () => {
+    numberEl.value = rangeEl.value;
+    updateTVRotation();
+  });
+  numberEl.addEventListener('input', () => {
+    rangeEl.value = numberEl.value;
+    updateTVRotation();
+  });
+}
+
+bindRangeAndNumber(tvRotX, tvRotXNum);
+bindRangeAndNumber(tvRotY, tvRotYNum);
+bindRangeAndNumber(tvRotZ, tvRotZNum);
+
 async function ensureVideoTexture() {
   if (videoTexture) return videoTexture;
   try {
@@ -268,6 +308,11 @@ function updatePreview() {
     tvGroup = new THREE.Group();
     tvGroup.add(tvMesh);
     tvGroup.position.set(parseFloat(tvPosX.value), parseFloat(tvPosY.value), parseFloat(tvPosZ.value));
+    tvGroup.rotation.set(
+      THREE.MathUtils.degToRad(parseFloat(tvRotX.value)),
+      THREE.MathUtils.degToRad(parseFloat(tvRotY.value)),
+      THREE.MathUtils.degToRad(parseFloat(tvRotZ.value)),
+    );
     tvGroup.scale.setScalar(parseFloat(tvScaleRange.value));
     scene.add(tvGroup);
     const tex = await ensureVideoTexture();
@@ -493,6 +538,14 @@ async function loadAssetsAndConfig() {
       tvPosY.value = String(cfg.tvPosition.y);
       tvPosZ.value = String(cfg.tvPosition.z);
     }
+    if (cfg.tvRotation) {
+      tvRotX.value = String(cfg.tvRotation.x);
+      tvRotY.value = String(cfg.tvRotation.y);
+      tvRotZ.value = String(cfg.tvRotation.z);
+      tvRotXNum.value = tvRotX.value;
+      tvRotYNum.value = tvRotY.value;
+      tvRotZNum.value = tvRotZ.value;
+    }
     if (cfg.webcamOffset) {
       camPosX.value = String(cfg.webcamOffset.x);
       camPosY.value = String(cfg.webcamOffset.y);
@@ -591,6 +644,11 @@ async function savePlacement() {
         x: parseFloat(tvPosX.value),
         y: parseFloat(tvPosY.value),
         z: parseFloat(tvPosZ.value),
+      },
+      tvRotation: {
+        x: parseFloat(tvRotX.value),
+        y: parseFloat(tvRotY.value),
+        z: parseFloat(tvRotZ.value),
       },
       webcamOffset: {
         x: parseFloat(camPosX.value),

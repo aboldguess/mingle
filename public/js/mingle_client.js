@@ -169,6 +169,7 @@ let webcamOffset = {
   z: FALLBACK_TV_SIZE / 2 + WEB_CAM_EPSILON,
   scale: FALLBACK_TV_SIZE,
 };
+let tvRotation = { x: 0, y: 0, z: 0 };
 
 /**
  * Fetch world configuration and asset manifest to determine which body and TV
@@ -189,6 +190,9 @@ async function initDefaultAssets() {
     }
     if (config.tvPosition) {
       tvOffset = config.tvPosition;
+    }
+    if (config.tvRotation) {
+      tvRotation = config.tvRotation;
     }
     if (config.webcamOffset) {
       webcamOffset = config.webcamOffset;
@@ -246,6 +250,7 @@ async function initDefaultAssets() {
   // Load TV model or fall back to a primitive
   const videoEl = document.getElementById('localVideo');
   avatarTV.setAttribute('position', `${tvOffset.x} ${tvOffset.y} ${tvOffset.z}`);
+  avatarTV.setAttribute('rotation', `${tvRotation.x} ${tvRotation.y} ${tvRotation.z}`);
   if (defaultTVEntry) {
     const tvItem = document.createElement('a-asset-item');
     tvItem.id = 'default-tv';
@@ -588,8 +593,12 @@ function movementLoop(time) {
     const camRot = playerCamera.object3D.rotation;
     // Apply only yaw to the avatar body.
     avatar.object3D.rotation.set(0, camRot.y, 0);
-    // Apply pitch to the TV so it nods independently of the body.
-    avatarTV.object3D.rotation.set(camRot.x, 0, 0);
+    // Apply pitch to the TV so it nods independently of the body, while preserving configured base rotation.
+    avatarTV.object3D.rotation.set(
+      THREE.MathUtils.degToRad(tvRotation.x) + camRot.x,
+      THREE.MathUtils.degToRad(tvRotation.y),
+      THREE.MathUtils.degToRad(tvRotation.z),
+    );
   }
 
   const dir = new THREE.Vector3();
@@ -702,6 +711,7 @@ socket.on('position', async data => {
     }
     // Position the TV head so the screen (and FPV camera) sit at eye level or saved offset.
     tv.setAttribute('position', `${tvOffset.x} ${tvOffset.y} ${tvOffset.z}`);
+    tv.setAttribute('rotation', `${tvRotation.x} ${tvRotation.y} ${tvRotation.z}`);
 
     const camPlane = document.createElement('a-plane');
     camPlane.setAttribute('position', `${webcamOffset.x} ${webcamOffset.y} ${webcamOffset.z}`);
@@ -735,7 +745,11 @@ socket.on('position', async data => {
   if (remote.tv) {
     // Tilt the remote TV using the transmitted pitch value.
     const tilt = data.tvTilt || 0;
-    remote.tv.setAttribute('rotation', { x: tilt, y: 0, z: 0 });
+    remote.tv.setAttribute('rotation', {
+      x: tilt + tvRotation.x,
+      y: tvRotation.y,
+      z: tvRotation.z,
+    });
   }
   if (data.spectatePos) {
     remote.cam.setAttribute('position', data.spectatePos);
