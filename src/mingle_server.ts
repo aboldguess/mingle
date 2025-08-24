@@ -8,9 +8,10 @@
  *   2. Server creation (HTTP/HTTPS)
  *   3. Middleware, static routes and world config endpoints (public GET, admin POST)
  *   4. Socket.io events for position, participant count and WebRTC signalling
- *   5. Asset upload, listing and deletion endpoints for avatar models
- *   6. Avatar refresh broadcasts when world configuration changes
- *   7. Startup logging with LAN-friendly addresses and HTTP/HTTPS guidance
+ *   5. Asset directories, manifest synchronisation and helper utilities
+ *   6. Asset upload, listing and deletion endpoints for avatar models
+ *   7. Avatar refresh broadcasts when world configuration changes
+ *   8. Startup logging with LAN-friendly addresses and HTTP/HTTPS guidance
  * - Notes: set LISTEN_HOST=0.0.0.0 to allow LAN clients. Use --debug for verbose logs.
  */
 import express from 'express';
@@ -226,7 +227,7 @@ function readManifest(): AssetManifest {
   syncDir(tvAssetsDir, 'tvs', manifest.tvs);
   removeMissingRoot(manifest.bodies);
   removeMissingRoot(manifest.tvs);
-  if (changed) {
+  if (changed || !fs.existsSync(manifestPath)) {
     try {
       writeManifest(manifest);
     } catch (err) {
@@ -239,6 +240,11 @@ function readManifest(): AssetManifest {
 function writeManifest(manifest: AssetManifest) {
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
 }
+
+// Perform an initial manifest synchronisation so the admin interface has
+// immediate access to any bundled assets and a manifest file is always present.
+const startupManifest = readManifest();
+console.log(`Asset manifest synced: ${startupManifest.bodies.length} bodies, ${startupManifest.tvs.length} TVs.`);
 
 // Multer storage chooses the destination directory based on the asset type
 // encoded in the request path. Filenames are sanitised to avoid directory
