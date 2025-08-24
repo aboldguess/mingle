@@ -272,6 +272,92 @@ function writeManifest(manifest: AssetManifest) {
 const startupManifest = readManifest();
 console.log(`Asset manifest synced: ${startupManifest.bodies.length} bodies, ${startupManifest.tvs.length} TVs.`);
 
+// Avatar preset storage lives alongside the asset manifest so that uploaded
+// models and their common assemblies are persisted together. Each preset
+// references body and TV asset IDs plus placement offsets. Presets are
+// surfaced to users as selectable full avatars on connection and can be
+// managed via the admin interface.
+interface AvatarPreset {
+  id: string;
+  name: string;
+  bodyId: string;
+  tvId: string;
+  bodyScale: number;
+  tvScale: number;
+  bodyPosition: { x: number; y: number; z: number };
+  tvPosition: { x: number; y: number; z: number };
+  tvRotation: { x: number; y: number; z: number };
+  webcamOffset: { x: number; y: number; z: number; scale: number };
+  webcamRotation: { x: number; y: number; z: number };
+}
+
+const presetsPath = path.join(assetsDir, 'avatar-presets.json');
+
+function readPresets(): AvatarPreset[] {
+  try {
+    return JSON.parse(fs.readFileSync(presetsPath, 'utf-8')) as AvatarPreset[];
+  } catch {
+    return [];
+  }
+}
+
+function writePresets(list: AvatarPreset[]) {
+  fs.writeFileSync(presetsPath, JSON.stringify(list, null, 2));
+}
+
+// Normalise preset data to avoid malformed values from reaching disk. When an
+// existing preset is supplied, missing fields fall back to the current values.
+function sanitisePreset(input: any, existing?: AvatarPreset): AvatarPreset {
+  const base = existing || {
+    id: '',
+    name: '',
+    bodyId: '',
+    tvId: '',
+    bodyScale: 1,
+    tvScale: 1,
+    bodyPosition: { x: 0, y: 0, z: 0 },
+    tvPosition: { x: 0, y: 0, z: 0 },
+    tvRotation: { x: 0, y: 0, z: 0 },
+    webcamOffset: { x: 0, y: 0, z: 0.25, scale: 0.5 },
+    webcamRotation: { x: 0, y: 0, z: 0 },
+  };
+  const num = (n: any, def: number) => (typeof n === 'number' ? n : def);
+  return {
+    id: base.id,
+    name: typeof input.name === 'string' ? input.name : base.name,
+    bodyId: typeof input.bodyId === 'string' ? input.bodyId : base.bodyId,
+    tvId: typeof input.tvId === 'string' ? input.tvId : base.tvId,
+    bodyScale: num(input.bodyScale, base.bodyScale) > 0 ? num(input.bodyScale, base.bodyScale) : 1,
+    tvScale: num(input.tvScale, base.tvScale) > 0 ? num(input.tvScale, base.tvScale) : 1,
+    bodyPosition: {
+      x: num(input.bodyPosition?.x, base.bodyPosition.x),
+      y: num(input.bodyPosition?.y, base.bodyPosition.y),
+      z: num(input.bodyPosition?.z, base.bodyPosition.z),
+    },
+    tvPosition: {
+      x: num(input.tvPosition?.x, base.tvPosition.x),
+      y: num(input.tvPosition?.y, base.tvPosition.y),
+      z: num(input.tvPosition?.z, base.tvPosition.z),
+    },
+    tvRotation: {
+      x: num(input.tvRotation?.x, base.tvRotation.x),
+      y: num(input.tvRotation?.y, base.tvRotation.y),
+      z: num(input.tvRotation?.z, base.tvRotation.z),
+    },
+    webcamOffset: {
+      x: num(input.webcamOffset?.x, base.webcamOffset.x),
+      y: num(input.webcamOffset?.y, base.webcamOffset.y),
+      z: num(input.webcamOffset?.z, base.webcamOffset.z),
+      scale: num(input.webcamOffset?.scale, base.webcamOffset.scale) > 0 ? num(input.webcamOffset?.scale, base.webcamOffset.scale) : 0.5,
+    },
+    webcamRotation: {
+      x: num(input.webcamRotation?.x, base.webcamRotation.x),
+      y: num(input.webcamRotation?.y, base.webcamRotation.y),
+      z: num(input.webcamRotation?.z, base.webcamRotation.z),
+    },
+  };
+}
+
 // Multer storage chooses the destination directory based on the asset type
 // encoded in the request path. Filenames are sanitised to avoid directory
 // traversal and ensure consistent URLs in the manifest.
@@ -480,6 +566,57 @@ if (ADMIN_TOKEN) {
       res.status(500).send('Delete failed');
     }
   });
+
+  // CRUD endpoints for avatar presets allowing administrators to save common
+  // body/TV assemblies. Presets are broadcast to all clients so newly created
+  // avatars become immediately selectable without a page refresh.
+  app.post('/api/avatar-presets', verifyAdmin, (req, res) => {
+    const list = readPresets();
+    const preset = sanitisePreset(req.body);
+    preset.id = Date.now().toString();
+    list.push(preset);
+    try {
+      writePresets(list);
+      io.emit('avatarPresets', list);
+      res.json({ status: 'ok', preset });
+    } catch (err) {
+      console.error('Failed to save presets', err);
+      res.status(500).send('Preset write failed');
+    }
+  });
+
+  app.put('/api/avatar-presets/:id', verifyAdmin, (req, res) => {
+    const { id } = req.params;
+    const list = readPresets();
+    const preset = list.find(p => p.id === id);
+    if (!preset) return res.status(404).send('Preset not found');
+    const updated = sanitisePreset(req.body, preset);
+    Object.assign(preset, updated);
+    try {
+      writePresets(list);
+      io.emit('avatarPresets', list);
+      res.json({ status: 'ok', preset });
+    } catch (err) {
+      console.error('Failed to update preset', err);
+      res.status(500).send('Preset update failed');
+    }
+  });
+
+  app.delete('/api/avatar-presets/:id', verifyAdmin, (req, res) => {
+    const { id } = req.params;
+    const list = readPresets();
+    const index = list.findIndex(p => p.id === id);
+    if (index === -1) return res.status(404).send('Preset not found');
+    list.splice(index, 1);
+    try {
+      writePresets(list);
+      io.emit('avatarPresets', list);
+      res.json({ status: 'ok' });
+    } catch (err) {
+      console.error('Failed to delete preset', err);
+      res.status(500).send('Preset delete failed');
+    }
+  });
 } else {
   console.warn('ADMIN_TOKEN not set; admin endpoints disabled');
 }
@@ -493,15 +630,41 @@ app.get('/api/assets', (_req, res) => {
   res.json(manifest);
 });
 
+// Public endpoint for listing saved avatar presets so users can choose a full
+// avatar on connection without needing admin privileges.
+app.get('/api/avatar-presets', (_req, res) => {
+  const presets = readPresets();
+  res.set('Cache-Control', 'no-store');
+  res.json(presets);
+});
+
 interface PositionData {
   [key: string]: number;
 }
+
+// Track which avatar preset each connected client is using so newcomers can be
+// informed of existing avatars. The map stores preset IDs keyed by socket ID.
+const clientPresets = new Map<string, string>();
 
 io.on('connection', (socket) => {
   // Always log client connections. Additional details are logged when in
   // debug mode to aid troubleshooting networking issues.
   console.log(`Client connected: ${socket.id}`);
   io.emit('clientCount', io.engine.clientsCount);
+
+  // Inform the new client of existing avatar selections so remote participants
+  // appear with the correct body/TV combinations immediately.
+  for (const [id, presetId] of clientPresets.entries()) {
+    socket.emit('avatarPreset', { id, presetId });
+  }
+
+  socket.on('avatarPreset', ({ presetId }) => {
+    clientPresets.set(socket.id, presetId);
+    io.emit('avatarPreset', { id: socket.id, presetId });
+    if (DEBUG) {
+      console.log(`Avatar preset from ${socket.id}: ${presetId}`);
+    }
+  });
 
   // Forward position data to all clients
   socket.on('position', (data: PositionData) => {
@@ -541,6 +704,7 @@ io.on('connection', (socket) => {
     console.log(`Client disconnected: ${socket.id}`);
     socket.broadcast.emit('disconnectClient', socket.id);
     io.emit('clientCount', io.engine.clientsCount);
+    clientPresets.delete(socket.id);
   });
 });
 

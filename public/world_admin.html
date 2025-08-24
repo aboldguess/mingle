@@ -167,9 +167,22 @@
     <button id="savePlacementBtn" type="button" style="margin-top:10px;">Save and Update User Avatars</button>
       </div>
     </div>
-    <h2>Debug Log</h2>
-      <div id="debugLog" style="white-space: pre-wrap; background:#f9f9f9; border:1px solid #ccc; padding:10px; margin-top:20px;">No errors logged.</div>
-      </main>
+  <h2>Avatar Presets</h2>
+    <p>Store common body/TV layouts for quick avatar selection. Select a preset to edit or remove.</p>
+    <div style="margin-bottom:10px;">
+      <input type="text" id="presetName" placeholder="Preset name" />
+      <button id="savePresetBtn" type="button">Save/Update Preset</button>
+      <button id="newPresetBtn" type="button">New Preset</button>
+    </div>
+    <table>
+      <thead>
+        <tr><th>Name</th><th>Body</th><th>TV</th><th>Edit</th><th>Delete</th></tr>
+      </thead>
+      <tbody id="presetTableBody"></tbody>
+    </table>
+  <h2>Debug Log</h2>
+    <div id="debugLog" style="white-space: pre-wrap; background:#f9f9f9; border:1px solid #ccc; padding:10px; margin-top:20px;">No errors logged.</div>
+    </main>
     <!-- model-viewer is an ES module; load it accordingly so custom element renders previews -->
     <script type="module" src="https://cdn.jsdelivr.net/npm/@google/model-viewer/dist/model-viewer.min.js"></script>
     <script>

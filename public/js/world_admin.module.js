@@ -175,6 +175,14 @@ const camRotXNum = document.getElementById('camRotXNum');
 const camRotYNum = document.getElementById('camRotYNum');
 const camRotZNum = document.getElementById('camRotZNum');
 const savePlacementBtn = document.getElementById('savePlacementBtn');
+// Avatar preset controls at the bottom of the admin screen.
+const presetNameInput = document.getElementById('presetName');
+const savePresetBtn = document.getElementById('savePresetBtn');
+const newPresetBtn = document.getElementById('newPresetBtn');
+const presetTableBody = document.getElementById('presetTableBody');
+
+let avatarPresets = [];
+let editingPresetId = null;
 
 let currentManifest = null;
 let selectedBody = null;
@@ -720,6 +728,106 @@ async function savePlacement() {
   }
 }
 if (savePlacementBtn) savePlacementBtn.addEventListener('click', savePlacement);
+
+// ---------------------------------------------------------------------------
+// Avatar preset CRUD handlers
+// ---------------------------------------------------------------------------
+async function loadPresets() {
+  try {
+    const res = await fetch('/api/avatar-presets');
+    avatarPresets = await res.json();
+    if (presetTableBody) {
+      presetTableBody.innerHTML = '';
+      for (const p of avatarPresets) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${p.name}</td><td>${p.bodyId}</td><td>${p.tvId}</td>` +
+          `<td><button data-id="${p.id}" class="editPreset">Edit</button></td>` +
+          `<td><button data-id="${p.id}" class="delPreset">Delete</button></td>`;
+        presetTableBody.appendChild(tr);
+      }
+      presetTableBody.querySelectorAll('.editPreset').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.getAttribute('data-id');
+          const preset = avatarPresets.find(x => x.id === id);
+          if (!preset) return;
+          editingPresetId = id;
+          if (presetNameInput) presetNameInput.value = preset.name;
+          selectedBody = currentManifest.bodies.find(b => b.id === preset.bodyId) || null;
+          selectedTV = currentManifest.tvs.find(t => t.id === preset.tvId) || null;
+          bodyScaleRange.value = String(preset.bodyScale);
+          tvScaleRange.value = String(preset.tvScale);
+          bodyPosX.value = String(preset.bodyPosition.x);
+          bodyPosY.value = String(preset.bodyPosition.y);
+          bodyPosZ.value = String(preset.bodyPosition.z);
+          tvPosX.value = String(preset.tvPosition.x);
+          tvPosY.value = String(preset.tvPosition.y);
+          tvPosZ.value = String(preset.tvPosition.z);
+          tvRotX.value = tvRotXNum.value = String(preset.tvRotation.x);
+          tvRotY.value = tvRotYNum.value = String(preset.tvRotation.y);
+          tvRotZ.value = tvRotZNum.value = String(preset.tvRotation.z);
+          camPosX.value = String(preset.webcamOffset.x);
+          camPosY.value = String(preset.webcamOffset.y);
+          camPosZ.value = String(preset.webcamOffset.z);
+          camScaleRange.value = String(preset.webcamOffset.scale);
+          camRotX.value = camRotXNum.value = String(preset.webcamRotation.x);
+          camRotY.value = camRotYNum.value = String(preset.webcamRotation.y);
+          camRotZ.value = camRotZNum.value = String(preset.webcamRotation.z);
+          updatePreview();
+        });
+      });
+      presetTableBody.querySelectorAll('.delPreset').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id = btn.getAttribute('data-id');
+          if (!id) return;
+          if (!confirm('Delete this preset?')) return;
+          const token = tokenInput.value.trim();
+          await fetch(`/api/avatar-presets/${id}`, { method: 'DELETE', headers: { 'x-admin-token': token } });
+          loadPresets();
+        });
+      });
+    }
+  } catch (err) {
+    console.error('Failed to load presets', err);
+    if (presetTableBody) presetTableBody.innerHTML = '<tr><td colspan="5">Failed to load presets</td></tr>';
+  }
+}
+
+async function savePreset() {
+  const token = tokenInput.value.trim();
+  if (!token) { alert('Enter admin token'); return; }
+  if (!selectedBody || !selectedTV || !presetNameInput.value.trim()) {
+    alert('Select body, TV and name before saving');
+    return;
+  }
+  const preset = {
+    name: presetNameInput.value.trim(),
+    bodyId: selectedBody.id,
+    tvId: selectedTV.id,
+    bodyScale: parseFloat(bodyScaleRange.value),
+    tvScale: parseFloat(tvScaleRange.value),
+    bodyPosition: { x: parseFloat(bodyPosX.value), y: parseFloat(bodyPosY.value), z: parseFloat(bodyPosZ.value) },
+    tvPosition: { x: parseFloat(tvPosX.value), y: parseFloat(tvPosY.value), z: parseFloat(tvPosZ.value) },
+    tvRotation: { x: parseFloat(tvRotX.value), y: parseFloat(tvRotY.value), z: parseFloat(tvRotZ.value) },
+    webcamOffset: { x: parseFloat(camPosX.value), y: parseFloat(camPosY.value), z: parseFloat(camPosZ.value), scale: parseFloat(camScaleRange.value) },
+    webcamRotation: { x: parseFloat(camRotX.value), y: parseFloat(camRotY.value), z: parseFloat(camRotZ.value) },
+  };
+  const method = editingPresetId ? 'PUT' : 'POST';
+  const url = editingPresetId ? `/api/avatar-presets/${editingPresetId}` : '/api/avatar-presets';
+  await fetch(url, { method, headers: { 'Content-Type': 'application/json', 'x-admin-token': token }, body: JSON.stringify(preset) });
+  editingPresetId = null;
+  if (presetNameInput) presetNameInput.value = '';
+  loadPresets();
+}
+
+function newPreset() {
+  editingPresetId = null;
+  if (presetNameInput) presetNameInput.value = '';
+}
+
+if (savePresetBtn) savePresetBtn.addEventListener('click', savePreset);
+if (newPresetBtn) newPresetBtn.addEventListener('click', newPreset);
+
+loadPresets();
 }
 
 // Run `init` as soon as the DOM is available.
