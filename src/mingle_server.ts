@@ -112,9 +112,9 @@ const worldConfig: WorldConfig = {
 
   // head. The TV's centre sits exactly on top of the body so the head appears
   // attached. The webcam plane is positioned slightly in front of the TV's
-  // forward (-Z) face so the video texture renders cleanly without z-fighting.
+  // forward (+Z) face so the video texture renders cleanly without z-fighting.
   tvPosition: { x: 0, y: 1.6, z: 0 },
-  webcamOffset: { x: 0, y: 0, z: -0.251, scale: 0.5 },
+  webcamOffset: { x: 0, y: 0, z: 0.251, scale: 0.5 },
 };
 
 // Avatar asset storage lives under /public/assets. Metadata about uploaded
