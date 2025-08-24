@@ -217,7 +217,8 @@ async function initDefaultAssets() {
     bodyItem.src = `/assets/${defaultBodyEntry.filename}`;
     assetsEl.appendChild(bodyItem);
     avatarBody.setAttribute('gltf-model', '#default-body');
-    avatarBody.setAttribute('scale', `${defaultBodyEntry.scale} ${defaultBodyEntry.scale} ${defaultBodyEntry.scale}`);
+    const bodyScale = Number.isFinite(defaultBodyEntry.scale) && defaultBodyEntry.scale > 0 ? defaultBodyEntry.scale : 1;
+    avatarBody.setAttribute('scale', `${bodyScale} ${bodyScale} ${bodyScale}`);
     avatarBody.setAttribute('position', `${bodyOffset.x} ${bodyOffset.y} ${bodyOffset.z}`);
   } else {
     try {
@@ -251,7 +252,8 @@ async function initDefaultAssets() {
     tvItem.src = `/assets/${defaultTVEntry.filename}`;
     assetsEl.appendChild(tvItem);
     avatarTV.setAttribute('gltf-model', '#default-tv');
-    avatarTV.setAttribute('scale', `${defaultTVEntry.scale} ${defaultTVEntry.scale} ${defaultTVEntry.scale}`);
+    const tvScale = Number.isFinite(defaultTVEntry.scale) && defaultTVEntry.scale > 0 ? defaultTVEntry.scale : 1;
+    avatarTV.setAttribute('scale', `${tvScale} ${tvScale} ${tvScale}`);
   } else {
     try {
       const res = await fetch('/assets/default-tv.glb', { method: 'HEAD' });
@@ -673,7 +675,8 @@ socket.on('position', async data => {
     const body = document.createElement('a-entity');
     if (defaultBodyEntry) {
       body.setAttribute('gltf-model', '#default-body');
-      body.setAttribute('scale', `${defaultBodyEntry.scale} ${defaultBodyEntry.scale} ${defaultBodyEntry.scale}`);
+      const bScale = Number.isFinite(defaultBodyEntry.scale) && defaultBodyEntry.scale > 0 ? defaultBodyEntry.scale : 1;
+      body.setAttribute('scale', `${bScale} ${bScale} ${bScale}`);
     } else {
       body.setAttribute('geometry', 'primitive: box; height: 1.6; width: 0.5; depth: 0.3');
       body.setAttribute('material', 'color: #AAAAAA');
@@ -691,7 +694,8 @@ socket.on('position', async data => {
     const tv = document.createElement('a-entity');
     if (defaultTVEntry) {
       tv.setAttribute('gltf-model', '#default-tv');
-      tv.setAttribute('scale', `${defaultTVEntry.scale} ${defaultTVEntry.scale} ${defaultTVEntry.scale}`);
+      const tScale = Number.isFinite(defaultTVEntry.scale) && defaultTVEntry.scale > 0 ? defaultTVEntry.scale : 1;
+      tv.setAttribute('scale', `${tScale} ${tScale} ${tScale}`);
     } else {
       tv.setAttribute('geometry', `primitive: box; height: ${FALLBACK_TV_SIZE}; width: ${FALLBACK_TV_SIZE}; depth: ${FALLBACK_TV_SIZE}`);
       tv.setAttribute('material', 'color: #222222');

@@ -171,6 +171,19 @@ function readManifest(): AssetManifest {
   };
   dedupe(manifest.bodies);
   dedupe(manifest.tvs);
+  // Ensure stored scales are sane numbers so clients don't apply NaN or
+  // negative values which would make avatars invisible. Invalid entries are
+  // normalised to a scale of 1.
+  const sanitiseScale = (list: AssetEntry[]) => {
+    for (const entry of list) {
+      if (!Number.isFinite(entry.scale) || entry.scale <= 0) {
+        entry.scale = 1;
+        changed = true;
+      }
+    }
+  };
+  sanitiseScale(manifest.bodies);
+  sanitiseScale(manifest.tvs);
   const syncDir = (dir: string, subdir: 'bodies' | 'tvs', list: AssetEntry[]) => {
     const existing = new Map(list.map(e => [e.filename, e]));
     const files = fs.existsSync(dir) ? fs.readdirSync(dir) : [];
@@ -396,6 +409,9 @@ if (ADMIN_TOKEN) {
       return res.status(404).send('Asset not found');
     }
     if (typeof scale === 'number') {
+      if (!Number.isFinite(scale) || scale <= 0) {
+        return res.status(400).send('Invalid scale');
+      }
       item.scale = scale;
     }
     if (type === 'tv' && screen) {
