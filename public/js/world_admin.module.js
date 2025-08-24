@@ -1,5 +1,5 @@
 /**
- * world_admin.js
+ * world_admin.module.js
  * Mini README:
  * - Purpose: handle world configuration form interactions for administrators,
  *   manage avatar asset uploads and placement.
@@ -12,7 +12,11 @@
  *   6. List uploaded assets with metadata, selection radios and delete controls
  *   7. Three.js preview for aligning TV and webcam canvas before saving
  * - Notes: requires the admin token set on the server. Token is provided via the form.
-*/
+ *         imports Three.js and GLTFLoader locally from `vendor` to work offline.
+ */
+import * as THREE from './vendor/three.module.js';
+import { GLTFLoader } from './vendor/GLTFLoader.js';
+
 function adminDebugLog(...args) {
   if (window.MINGLE_DEBUG) {
     console.log(...args);
@@ -140,18 +144,14 @@ let camera = null;
 let loader = null;
 function initThree() {
   if (!previewCanvas) return;
-  // Bail out early if the GLTFLoader dependency failed to load. Without this
-  // check `new THREE.GLTFLoader()` would throw and break the admin page.
-  if (!THREE || !THREE.GLTFLoader) {
-    throw new Error('GLTFLoader missing');
-  }
+  // Initialize Three.js renderer, scene and camera using locally vendored modules.
   renderer = new THREE.WebGLRenderer({ canvas: previewCanvas, alpha: true });
   scene = new THREE.Scene();
   camera = new THREE.PerspectiveCamera(45, previewCanvas.width / previewCanvas.height, 0.1, 100);
   camera.position.set(0, 1.5, 3);
   const light = new THREE.HemisphereLight(0xffffff, 0x444444, 1);
   scene.add(light);
-  loader = new THREE.GLTFLoader();
+  loader = new GLTFLoader();
   function animate() {
     requestAnimationFrame(animate);
     renderer.render(scene, camera);

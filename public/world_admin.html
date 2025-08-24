@@ -13,7 +13,7 @@
     5. Client-side script to load and save settings via the secure API
   - Notes:
     - requires the server to be started with ADMIN_TOKEN for access
-    - loads Three.js (three.module.js) and GLTFLoader locally from `js/vendor`
+    - uses world_admin.module.js to import Three.js and GLTFLoader from `js/vendor`
       so the admin interface works without a CDN; update these with the curl
       commands listed in the project README when a newer release is needed
 -->
@@ -133,22 +133,9 @@
       </div>
     </div>
     </main>
-    <!--
-      Load vendored Three.js modules so the preview canvas renders even without
-      internet access. The modules are imported and re-attached to the global
-      namespace for compatibility with the rest of the admin script.
-    -->
-    <script type="module">
-      import * as THREE from './js/vendor/three.module.js';
-      import { GLTFLoader } from './js/vendor/GLTFLoader.js';
-      // Expose THREE and GLTFLoader globally for world_admin.js which expects
-      // them on the window object.
-      window.THREE = THREE;
-      window.THREE.GLTFLoader = GLTFLoader;
-    </script>
     <!-- model-viewer is an ES module; load it accordingly so custom element renders previews -->
     <script type="module" src="https://cdn.jsdelivr.net/npm/@google/model-viewer/dist/model-viewer.min.js"></script>
     <script src="js/mingle_navbar.js"></script>
-    <script src="js/world_admin.js"></script>
+    <script type="module" src="js/world_admin.module.js"></script>
   </body>
 </html>
