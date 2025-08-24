@@ -11,6 +11,7 @@
     4. Avatar asset management: body and TV tables with metadata, upload/delete controls
        plus a Three.js preview to align the TV and webcam canvas
     5. Client-side script to load and save settings via the secure API
+    6. Debug log area (#debugLog) surfaces script errors and typical causes
   - Notes:
     - requires the server to be started with ADMIN_TOKEN for access
     - loads Three.js and GLTFLoader from local `js/vendor` paths with error
@@ -129,10 +130,12 @@
             <label>Cam Scale <input type="range" id="camScaleRange" min="0.1" max="5" step="0.1" value="1"></label>
           </div>
         </div>
-        <button id="savePlacementBtn" type="button" style="margin-top:10px;">Save and Update User Avatars</button>
+    <button id="savePlacementBtn" type="button" style="margin-top:10px;">Save and Update User Avatars</button>
       </div>
     </div>
-    </main>
+    <h2>Debug Log</h2>
+      <div id="debugLog" style="white-space: pre-wrap; background:#f9f9f9; border:1px solid #ccc; padding:10px; margin-top:20px;">No errors logged.</div>
+      </main>
     <!-- model-viewer is an ES module; load it accordingly so custom element renders previews -->
     <script type="module" src="https://cdn.jsdelivr.net/npm/@google/model-viewer/dist/model-viewer.min.js"></script>
     <script>
