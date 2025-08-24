@@ -155,9 +155,19 @@ const assetsEl = sceneEl.querySelector('a-assets');
 // determine the avatar appearance for local and remote participants.
 let defaultBodyEntry = null;
 let defaultTVEntry = null;
+// Size of the fallback black cube used for the TV head. The webcam feed plane
+// matches this size so it perfectly covers the front face.
+const FALLBACK_TV_SIZE = 0.5;
+const WEB_CAM_EPSILON = 0.001; // slight offset so the plane renders on the surface
 // Stored offset for positioning the TV relative to the body and webcam relative to the TV.
 let tvOffset = { x: 0, y: 1.6, z: 0 };
-let webcamOffset = { x: 0, y: 0, z: 0.2, scale: 1 };
+let webcamOffset = {
+  x: 0,
+  y: 0,
+  // Negative z places the webcam feed on the front face rather than behind the cube.
+  z: -(FALLBACK_TV_SIZE / 2 + WEB_CAM_EPSILON),
+  scale: FALLBACK_TV_SIZE,
+};
 
 /**
  * Fetch world configuration and asset manifest to determine which body and TV
@@ -238,18 +248,19 @@ async function initDefaultAssets() {
         assetsEl.appendChild(tvItem);
         avatarTV.setAttribute('gltf-model', '#default-tv');
       } else {
-        avatarTV.setAttribute('geometry', 'primitive: box; height: 0.4; width: 0.6; depth: 0.5');
+        avatarTV.setAttribute('geometry', `primitive: box; height: ${FALLBACK_TV_SIZE}; width: ${FALLBACK_TV_SIZE}; depth: ${FALLBACK_TV_SIZE}`);
         avatarTV.setAttribute('material', 'color: #222222');
       }
     } catch {
-      avatarTV.setAttribute('geometry', 'primitive: box; height: 0.4; width: 0.6; depth: 0.5');
+      avatarTV.setAttribute('geometry', `primitive: box; height: ${FALLBACK_TV_SIZE}; width: ${FALLBACK_TV_SIZE}; depth: ${FALLBACK_TV_SIZE}`);
       avatarTV.setAttribute('material', 'color: #222222');
     }
   }
   if (avatarWebcam) {
     avatarWebcam.setAttribute('material', `shader: flat; src: #localVideo`);
     avatarWebcam.setAttribute('position', `${webcamOffset.x} ${webcamOffset.y} ${webcamOffset.z}`);
-    avatarWebcam.setAttribute('scale', `${webcamOffset.scale} ${webcamOffset.scale} ${webcamOffset.scale}`);
+    avatarWebcam.setAttribute('width', webcamOffset.scale);
+    avatarWebcam.setAttribute('height', webcamOffset.scale);
   }
 }
 
@@ -667,7 +678,7 @@ socket.on('position', async data => {
       tv.setAttribute('gltf-model', '#default-tv');
       tv.setAttribute('scale', `${defaultTVEntry.scale} ${defaultTVEntry.scale} ${defaultTVEntry.scale}`);
     } else {
-      tv.setAttribute('geometry', 'primitive: box; height: 0.4; width: 0.6; depth: 0.5');
+      tv.setAttribute('geometry', `primitive: box; height: ${FALLBACK_TV_SIZE}; width: ${FALLBACK_TV_SIZE}; depth: ${FALLBACK_TV_SIZE}`);
       tv.setAttribute('material', 'color: #222222');
     }
     // Position the TV head so the screen (and FPV camera) sit at eye level or saved offset.
@@ -675,7 +686,8 @@ socket.on('position', async data => {
 
     const camPlane = document.createElement('a-plane');
     camPlane.setAttribute('position', `${webcamOffset.x} ${webcamOffset.y} ${webcamOffset.z}`);
-    camPlane.setAttribute('scale', `${webcamOffset.scale} ${webcamOffset.scale} ${webcamOffset.scale}`);
+    camPlane.setAttribute('width', webcamOffset.scale);
+    camPlane.setAttribute('height', webcamOffset.scale);
     camPlane.setAttribute('material', `shader: flat; src: #video-${data.id}`);
     tv.appendChild(camPlane);
 
