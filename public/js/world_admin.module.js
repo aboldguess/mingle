@@ -22,13 +22,18 @@ function adminDebugLog(...args) {
     console.log(...args);
   }
 }
-document.addEventListener('DOMContentLoaded', () => {
-const tokenInput = document.getElementById('token');
-const worldNameInput = document.getElementById('worldName');
-const maxParticipantsInput = document.getElementById('maxParticipants');
-const welcomeMessageInput = document.getElementById('welcomeMessage');
-const worldGeometrySelect = document.getElementById('worldGeometry');
-const worldColorInput = document.getElementById('worldColor');
+// Initialise the admin interface once the DOM is ready. Some environments
+// inject module scripts after `DOMContentLoaded` has already fired which would
+// previously prevent initialisation from running and the asset table from
+// populating. We now guard against that by explicitly checking the readyState
+// and running `init()` immediately if the document is already loaded.
+function init() {
+  const tokenInput = document.getElementById('token');
+  const worldNameInput = document.getElementById('worldName');
+  const maxParticipantsInput = document.getElementById('maxParticipants');
+  const welcomeMessageInput = document.getElementById('welcomeMessage');
+  const worldGeometrySelect = document.getElementById('worldGeometry');
+  const worldColorInput = document.getElementById('worldColor');
 
 async function loadConfig() {
   const token = tokenInput.value.trim();
@@ -167,7 +172,7 @@ try {
 }
 
 // Load manifest and config whether or not the preview initializes successfully.
-loadAssetsAndConfig();
+  loadAssetsAndConfig();
 
 async function ensureVideoTexture() {
   if (videoTexture) return videoTexture;
@@ -510,4 +515,11 @@ async function savePlacement() {
   }
 }
 if (savePlacementBtn) savePlacementBtn.addEventListener('click', savePlacement);
-});
+}
+
+// Run `init` as soon as the DOM is available.
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
