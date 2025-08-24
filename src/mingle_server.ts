@@ -431,8 +431,13 @@ if (ADMIN_TOKEN) {
   console.warn('ADMIN_TOKEN not set; admin endpoints disabled');
 }
 
+// Expose the current asset manifest and explicitly disable caching so that
+// newly added or removed models are reflected immediately on subsequent page
+// loads. The manifest is re-synchronised with the filesystem on each request.
 app.get('/api/assets', (_req, res) => {
-  res.json(readManifest());
+  const manifest = readManifest();
+  res.set('Cache-Control', 'no-store');
+  res.json(manifest);
 });
 
 interface PositionData {
