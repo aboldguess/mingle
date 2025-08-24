@@ -78,18 +78,17 @@ npm start
 #### Updating Three.js vendor files
 
 The admin page loads Three.js and GLTFLoader from `public/js/vendor` instead of
-CDN URLs. Refresh them occasionally to pick up upstream fixes:
+CDN URLs. Use the helper script to refresh these files and verify their
+checksums:
 
 ##### Linux / Raspberry Pi
 ```bash
-curl -L -o public/js/vendor/three.module.js https://raw.githubusercontent.com/mrdoob/three.js/master/build/three.module.js
-curl -L -o public/js/vendor/GLTFLoader.js https://raw.githubusercontent.com/mrdoob/three.js/master/examples/jsm/loaders/GLTFLoader.js
+./scripts/fetch_three_assets.sh
 ```
 
 ##### Windows (PowerShell)
 ```powershell
-Invoke-WebRequest https://raw.githubusercontent.com/mrdoob/three.js/master/build/three.module.js -OutFile public/js/vendor/three.module.js
-Invoke-WebRequest https://raw.githubusercontent.com/mrdoob/three.js/master/examples/jsm/loaders/GLTFLoader.js -OutFile public/js/vendor/GLTFLoader.js
+bash scripts/fetch_three_assets.sh
 ```
 
 Once running, the server logs every accessible address, e.g.
