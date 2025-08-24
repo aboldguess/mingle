@@ -129,14 +129,19 @@
       </div>
     </div>
     </main>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
     <!--
-      Load GLTFLoader from the CDN and attach it to the global THREE namespace.
-      Using the non-module version guarantees it executes before world_admin.js
-      so the Three.js preview initialises correctly even in environments without
-      module support.
+      Use the latest Three.js module build and GLTFLoader so the preview canvas
+      renders correctly. The modules are imported and re-attached to the global
+      namespace for compatibility with the rest of the admin script.
     -->
-    <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/js/loaders/GLTFLoader.js"></script>
+    <script type="module">
+      import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.179.1/build/three.module.js';
+      import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.179.1/examples/jsm/loaders/GLTFLoader.js';
+      // Expose THREE and GLTFLoader globally for world_admin.js which expects
+      // them on the window object.
+      window.THREE = THREE;
+      window.THREE.GLTFLoader = GLTFLoader;
+    </script>
     <!-- model-viewer is an ES module; load it accordingly so custom element renders previews -->
     <script type="module" src="https://cdn.jsdelivr.net/npm/@google/model-viewer/dist/model-viewer.min.js"></script>
     <script src="js/mingle_navbar.js"></script>
