@@ -79,7 +79,7 @@ export function SignupPage() {
       <form className="card auth-card stack" onSubmit={submit}>
         <Logo />
         <h1>Create your account</h1>
-        <p className="muted small">Free forever for meetings up to 40 minutes. No credit card needed.</p>
+        <p className="muted small">Free forever for events up to 40 minutes. No credit card needed.</p>
         {error && <div className="error" role="alert">{error}</div>}
         <label>Your name<input required autoComplete="name" value={form.name} onChange={set('name')} /></label>
         <label>Work email<input type="email" required autoComplete="email" value={form.email} onChange={set('email')} /></label>

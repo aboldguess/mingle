@@ -1,7 +1,9 @@
 # Mingle architecture
 
-Mingle is a hosted video meeting product: organisations sign up, schedule meetings, share
-links, and pay per host through Stripe. This document explains how the pieces fit.
+Mingle is a video meeting you walk around in ("Where Zoom Meets Doom"): each attendee is a
+first-person avatar in a 3D venue, with their webcam on their avatar's face and proximity voice.
+Organisations sign up, schedule events (stored as meetings), share links, and pay per host through
+Stripe. This document explains how the pieces fit.
 
 ```
  Browser (React SPA)                     Mingle API (Fastify, Node 22)           Postgres
@@ -25,14 +27,33 @@ links, and pay per host through Stripe. This document explains how the pieces fi
 | Media | [LiveKit](https://livekit.io) SFU | Open source (Apache 2.0), production proven, simulcast and adaptive streams, screen share, data channels for chat, E2EE support, horizontal scaling. Runs as LiveKit Cloud or self-hosted with no code changes. The old peer-to-peer mesh could not scale past about 5 people. |
 | API | Fastify + TypeScript | Fast, schema-friendly, small surface. One process serves the API and the built SPA. |
 | Data | Postgres + Drizzle ORM | Relational data with real constraints; Drizzle is pure TypeScript (no native engine) and generates plain SQL migrations committed to `apps/server/drizzle`. |
-| Web | React + Vite + `@livekit/components-react` | The LiveKit components give a polished conference UI (grid and speaker layouts, device pickers, chat, screen share) that we wrap with Mingle's own host controls. |
+| Web | React + Vite + three.js | The venue is plain three.js built from primitives and canvas textures (no asset files). React draws the HUD around it. `@livekit/components-react` is used only for the device check before entry and the host's people list. |
 | Billing | Stripe Checkout + Billing Portal + webhooks | No card data touches our servers (PCI SAQ-A). Plans change only via signed, idempotent webhooks. |
+
+## The 3D venue (apps/web/src/world)
+
+| File | Role |
+| --- | --- |
+| `venue.ts` | Builds the lobby, auditorium, stage and big screen; exposes the collision boxes and `zoneAt()` (lobby, auditorium or stage). |
+| `avatar.ts` | Telly-headed avatar: body, walk animation, CRT screen that shows a `VideoTexture` of the webcam or a cartoon face, name tag, emote and chat bubbles, speaking light. |
+| `engine.ts` | `World`: renderer, game loop, pointer-lock FPS controls with step-up/jump/collision, remote interpolation, confetti projectiles and particles, big-screen texture, minimap. Network agnostic. |
+| `session.ts` | `WorldSession`: glue to a LiveKit `Room`. Sends and receives state over data messages, maps tracks to faces and the big screen, mixes voices. |
+| `bots.ts` | Pretend attendees and a keynote slide deck for the solo demo and the landing page backdrop. |
+| `WorldView.tsx` | React HUD: self view, mic/cam/present buttons, emotes, chat, minimap, people list, help card. |
+
+Networking uses LiveKit only; there is no separate game server.
+
+- **Movement**: each client publishes `{x, y, z, yaw, pitch, colour}` on the `mingle` data topic, lossy, up to ~12 times a second while moving and once a second when idle. Receivers interpolate. Everything a client receives is validated before use.
+- **Events**: emotes (allow-listed emoji), confetti shots (origin + direction, every client simulates the same arc), hits (sent by the shooter) and chat go over the same topic, reliably.
+- **Proximity voice**: remote microphones are routed through one shared `AudioContext` (the room's `webAudioMix`), with a `StereoPannerNode` per speaker. Every 120 ms volume is set from distance (full under 2.5 m, silent beyond ~16 m), cut to 30% through the lobby/auditorium wall. Someone on stage is heard at full volume across the auditorium, and the audience is halved while they present.
+- **Bandwidth**: adaptive stream is off; instead each remote camera's simulcast layer is chosen by distance (high under 6 m, medium under 14 m, low beyond, paused beyond 32 m). Presenters always get high.
+- **Big screen**: a screen share wins; otherwise the camera of whoever stands on stage; otherwise the idle card. Screen sharing is offered only on stage.
 
 ## Repository layout
 
 ```
 apps/server     Fastify API (src/), SQL migrations (drizzle/), integration tests (test/)
-apps/web        React SPA (src/), unit tests (test/)
+apps/web        React SPA (src/), the 3D venue (src/world/), unit tests (test/)
 deploy/         LiveKit config for local development
 docs/           Architecture, deployment, roadmap
 ```
@@ -47,7 +68,7 @@ docs/           Architecture, deployment, roadmap
 - **AdmissionRequest**: a guest waiting in a meeting's waiting room.
 - **AuditLog**: security and admin events (sign-ins, role changes, invitations, billing, meeting moderation).
 
-## Meeting join flow
+## Event entry flow
 
 1. The browser loads `/m/<code>` and fetches public meeting info.
 2. The user picks camera/mic in the pre-join screen and calls `POST /api/meetings/<code>/join`.

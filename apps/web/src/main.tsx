@@ -1,5 +1,6 @@
 import '@livekit/components-styles';
 import './styles.css';
+import './world/world.css';
 import { lazy, StrictMode, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
@@ -18,6 +19,7 @@ import { SessionProvider } from './session';
 
 // The video room pulls in the media SDK, so load it only when someone opens a meeting.
 const MeetingPage = lazy(() => import('./pages/Meeting').then((m) => ({ default: m.MeetingPage })));
+const PlayPage = lazy(() => import('./pages/Play').then((m) => ({ default: m.PlayPage })));
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -28,7 +30,8 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
           <Route path="/invite/:token" element={<InvitePage />} />
-          <Route path="/m/:code" element={<Suspense fallback={<div className="auth-wrap muted">Loading…</div>}><MeetingPage /></Suspense>} />
+          <Route path="/play" element={<Suspense fallback={<div className="world-loading">Loading…</div>}><PlayPage /></Suspense>} />
+          <Route path="/m/:code" element={<Suspense fallback={<div className="world-loading">Loading…</div>}><MeetingPage /></Suspense>} />
           <Route path="/app" element={<RequireAuth><HomeRedirect /></RequireAuth>} />
           <Route path="/app/:orgId" element={<RequireAuth><AppShell /></RequireAuth>}>
             <Route index element={<DashboardPage />} />

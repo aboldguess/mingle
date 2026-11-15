@@ -1,0 +1,133 @@
+const { chromium } = require('playwright');
+// Two people in a live venue: avatars sync, webcam faces, chat, the stage screen,
+// confetti hits and host removal.
+// Usage: start livekit-server --dev and the app (API on 3000, web on 5173 or the
+// built app on 3000), then: BASE_URL=http://localhost:5173 node e2e/venue.smoke.cjs
+const BASE = process.env.BASE_URL ?? 'http://localhost:3000';
+const SHOTS = process.env.SCREENSHOT_DIR ?? '.';
+const W = (page, fn, arg) => page.evaluate(fn, arg);
+
+function check(cond, msg) {
+  if (!cond) throw new Error(`Check failed: ${msg}`);
+  console.log('ok -', msg);
+}
+
+async function until(page, fn, arg, what, timeout = 15000) {
+  const start = Date.now();
+  while (Date.now() - start < timeout) {
+    if (await page.evaluate(fn, arg)) return;
+    await page.waitForTimeout(250);
+  }
+  throw new Error(`Timed out waiting for ${what}`);
+}
+
+(async () => {
+  const browser = await chromium.launch({
+    args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--autoplay-policy=no-user-gesture-required'],
+  });
+  const mk = async () => {
+    const c = await browser.newContext({ permissions: ['camera', 'microphone'], viewport: { width: 1100, height: 680 } });
+    const p = await c.newPage();
+    p.setDefaultTimeout(60000);
+    p.on('pageerror', (e) => console.log('PAGEERR', e.message));
+    p.on('console', (m) => m.type() === 'error' && !m.text().includes('401') && console.log('CONSOLE', m.text()));
+    return p;
+  };
+  const host = await mk();
+  await host.goto(BASE + '/signup');
+  await host.fill('input[autocomplete=name]', 'Phil Host');
+  await host.fill('input[type=email]', `host${Date.now()}@example.com`);
+  await host.fill('input[type=password]', 'a very long password');
+  await host.fill('label:has-text("Company") input', 'Acme Ltd');
+  await host.click('button:has-text("Create account")');
+  await host.waitForSelector('text=Open a venue now');
+  await host.screenshot({ path: `${SHOTS}/dashboard.png` });
+  await host.click('text=Open a venue now');
+  await host.waitForURL(/\/m\//);
+  const url = host.url();
+  await host.waitForSelector('.lk-prejoin', { timeout: 15000 });
+  await host.waitForTimeout(1000);
+  await host.screenshot({ path: `${SHOTS}/prejoin.png` });
+  await host.click('button:has-text("Open the venue")');
+  await host.waitForSelector('.world-canvas', { timeout: 20000 });
+
+  const guest = await mk();
+  await guest.goto(url);
+  await guest.waitForSelector('.lk-prejoin');
+  await guest.fill('.lk-prejoin input#username', 'Gina Guest');
+  await guest.click('button:has-text("Enter the venue")');
+  await guest.waitForSelector('.world-canvas', { timeout: 20000 });
+
+  // Both see each other's avatar.
+  await until(host, () => window.__mingleWorld?.remoteIds().some((id) => window.__mingleWorld.remotePosition(id)), null, 'host to see guest');
+  await until(guest, () => window.__mingleWorld?.remoteIds().some((id) => window.__mingleWorld.remotePosition(id)), null, 'guest to see host');
+  check(true, 'avatars appear for both people');
+
+  // Webcams become faces.
+  await until(host, () => window.__mingleWorld.remoteIds().some((id) => window.__mingleWorld.getAvatar(id).hasVideo), null, 'guest webcam on host side');
+  check(true, "guest's webcam shows on their avatar for the host");
+
+  // Movement syncs: put the guest in front of the host.
+  await W(guest, () => { const w = window.__mingleWorld; w.pos.set(0, 0, 11.5); w.yaw = Math.PI; });
+  await W(host, () => { const w = window.__mingleWorld; w.pos.set(0, 0, 14.5); w.yaw = 0; w.pitch = 0; });
+  await until(host, () => { const w = window.__mingleWorld; const id = w.remoteIds()[0]; const p = w.remotePosition(id); return p && Math.abs(p.z - 11.5) < 0.3; }, null, 'guest position to sync');
+  check(true, 'positions sync between browsers');
+
+  // Proximity voice: loud up close, quiet across the building.
+  const vol = () => Object.values(window.__mingleSession.volumes())[0] ?? -1;
+  await until(host, (fn) => eval(fn)() > 0.9, vol.toString(), 'full volume up close');
+  check(true, 'voice is full volume up close');
+  await W(guest, () => { const w = window.__mingleWorld; w.pos.set(-18, 0, 28); });
+  await until(host, (fn) => { const v = eval(fn)(); return v >= 0 && v < 0.1; }, vol.toString(), 'voice to fade with distance');
+  check(true, 'voice fades with distance');
+  await W(guest, () => { const w = window.__mingleWorld; w.pos.set(0, 0, 11.5); w.yaw = Math.PI; });
+  await until(host, () => { const w = window.__mingleWorld; const p = w.remotePosition(w.remoteIds()[0]); return p && Math.abs(p.z - 11.5) < 0.3; }, null, 'guest to come back');
+
+  // Chat.
+  await guest.click('text=Click to play');
+  await guest.keyboard.press('Enter');
+  await guest.fill('.chat-input', 'Hello from the guest');
+  await guest.keyboard.press('Enter');
+  await host.waitForSelector('.chat-line:has-text("Hello from the guest")', { timeout: 10000 });
+  check(true, 'chat arrives');
+  await host.click('text=Click to play');
+  // Clicking moves the mouse, which turns the head; look straight at the guest again.
+  await W(host, () => { const w = window.__mingleWorld; w.yaw = 0; w.pitch = 0; });
+  await host.waitForTimeout(1500);
+  await host.screenshot({ path: `${SHOTS}/venue-face-to-face.png` });
+
+  // Confetti: host shoots the guest.
+  await W(host, () => { const w = window.__mingleWorld; w.yaw = 0; w.pitch = -0.05; });
+  await host.waitForTimeout(200);
+  await W(host, () => window.__mingleWorld.fire());
+  await until(guest, () => Number(document.querySelector('.world')?.dataset.splatted) > 0, null, 'the guest to get confetti', 20000);
+  await host.waitForSelector('text=Confetti landed: 1');
+  check(true, 'confetti hit reaches the target');
+  await guest.screenshot({ path: `${SHOTS}/venue-splat.png` });
+
+  // Stage: guest walks on stage, host sees them on the big screen.
+  await W(guest, () => { const w = window.__mingleWorld; w.pos.set(0, 1.1, -28.5); w.yaw = Math.PI; });
+  await W(host, () => { const w = window.__mingleWorld; w.pos.set(0, 0, -6); w.yaw = 0; w.pitch = 0.12; });
+  await until(host, () => window.__mingleWorld.venue.screen.material.map?.isVideoTexture === true, null, 'stage camera on the big screen', 20000);
+  check(true, 'presenter camera appears on the big screen');
+  await until(host, (fn) => eval(fn)() > 0.9, vol.toString(), 'stage mic to reach the hall');
+  check(true, 'stage mic reaches the back of the auditorium');
+  await host.waitForTimeout(2000);
+  await host.screenshot({ path: `${SHOTS}/venue-keynote.png` });
+
+  // Host removes guest.
+  await host.keyboard.press('Tab');
+  const removeBtn = host.locator('.host-panel button:has-text("Remove")').first();
+  host.once('dialog', (d) => d.accept());
+  await removeBtn.click();
+  await guest.waitForSelector('text=The host removed you', { timeout: 30000 }).catch(async (e) => {
+    await guest.screenshot({ path: `${SHOTS}/guest-after-remove.png` });
+    console.log('guest text:', (await guest.textContent('body')).slice(0, 300));
+    throw e;
+  });
+  check(true, 'host can remove someone');
+  await browser.close();
+})().catch((e) => {
+  console.error('FAIL', e);
+  process.exit(1);
+});

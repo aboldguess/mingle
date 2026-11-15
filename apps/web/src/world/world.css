@@ -1,0 +1,93 @@
+/* ---------- 3D venue + HUD ---------- */
+.world { position: fixed; inset: 0; background: #120c3a; color: #fff; overflow: hidden; user-select: none; font-family: 'Trebuchet MS', Inter, system-ui, sans-serif; }
+.world-stage { position: absolute; inset: 0; }
+.world-canvas { display: block; width: 100%; height: 100%; outline: none; }
+.world-loading { position: fixed; inset: 0; display: grid; place-items: center; background: #120c3a; color: #ffd166; font: 700 1.4rem 'Trebuchet MS', system-ui, sans-serif; }
+.media-host { position: fixed; left: 0; bottom: 0; width: 2px; height: 2px; overflow: hidden; opacity: 0; pointer-events: none; }
+.media-host video { width: 2px; height: 2px; }
+
+.hud { position: absolute; z-index: 5; }
+.hud-top-left { top: 14px; left: 14px; display: flex; flex-direction: column; gap: 8px; max-width: 60vw; }
+.hud-title { display: flex; align-items: baseline; gap: 10px; text-shadow: 0 2px 0 rgba(0,0,0,0.5); font-size: 1.1rem; }
+.hud-brand { font-weight: 900; letter-spacing: 0.08em; color: #ff006e; background: #fff3b0; padding: 1px 8px; border-radius: 6px; transform: rotate(-3deg); display: inline-block; text-shadow: none; font-size: 0.9rem; }
+.hud-chips { gap: 6px; }
+.chip { background: rgba(18, 12, 58, 0.72); border: 2px solid rgba(255,255,255,0.18); color: #fff; border-radius: 999px; padding: 3px 12px; font-size: 0.82rem; font-weight: 700; backdrop-filter: blur(4px); }
+.chip-btn { cursor: pointer; font-family: inherit; }
+.chip-btn:hover { border-color: #ffd166; }
+.chip-lobby { background: #ffbe0b; color: #2b2d42; border-color: #ffbe0b; }
+.chip-auditorium { background: #8338ec; border-color: #8338ec; }
+.chip-stage { background: #ff006e; border-color: #ff006e; animation: pulse 1.2s ease-in-out infinite; }
+.chip-warn { background: #e63946; border-color: #e63946; }
+@keyframes pulse { 50% { transform: scale(1.06); } }
+
+.hud-top-right { top: 14px; right: 14px; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.minimap { width: 120px; height: 192px; background: rgba(18,12,58,0.6); border: 2px solid rgba(255,255,255,0.25); border-radius: 12px; }
+
+.crosshair { position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px; z-index: 4; pointer-events: none; }
+.crosshair::before, .crosshair::after { content: ''; position: absolute; background: #fff; box-shadow: 0 0 0 1.5px rgba(0,0,0,0.5); border-radius: 2px; }
+.crosshair::before { left: 10px; top: 2px; width: 2px; height: 18px; }
+.crosshair::after { top: 10px; left: 2px; height: 2px; width: 18px; }
+
+.hud-toasts { position: absolute; top: 70px; left: 50%; transform: translateX(-50%); z-index: 6; display: flex; flex-direction: column; gap: 6px; align-items: center; pointer-events: none; width: min(560px, 90vw); }
+.hud-toast { background: #fff3b0; color: #2b2d42; font-weight: 700; padding: 8px 16px; border-radius: 12px; box-shadow: 0 4px 0 rgba(0,0,0,0.3); text-align: center; animation: drop 0.25s ease-out; }
+@keyframes drop { from { transform: translateY(-12px); opacity: 0; } }
+
+.hud-chat { left: 14px; bottom: 112px; width: min(420px, 70vw); display: flex; flex-direction: column; gap: 4px; }
+.chat-line { background: rgba(18,12,58,0.7); padding: 4px 10px; border-radius: 10px; font-size: 0.9rem; width: fit-content; max-width: 100%; overflow-wrap: anywhere; user-select: text; }
+.chat-system { color: #ffd166; font-style: italic; }
+.chat-input { background: rgba(255,255,255,0.95); color: #16161d; border: 3px solid #ff006e; border-radius: 10px; font-family: inherit; }
+.chat-hint { font-size: 0.75rem; opacity: 0.6; text-shadow: 0 1px 0 #000; }
+
+.hud-bottom { left: 0; right: 0; bottom: 0; display: flex; align-items: flex-end; gap: 14px; padding: 0 14px 14px; pointer-events: none; }
+.hud-bottom > * { pointer-events: auto; }
+.selfview { position: relative; width: 132px; height: 99px; border-radius: 18px; border: 6px solid #f1e3c8; box-shadow: 0 0 0 3px #2b2b2b, 0 6px 0 rgba(0,0,0,0.35); background: #1b998b; overflow: hidden; flex-shrink: 0; }
+.selfview video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+.selfview-off { display: grid; place-items: center; height: 100%; font-size: 2.2rem; }
+.selfview-name { position: absolute; left: 4px; bottom: 3px; font-size: 0.7rem; font-weight: 700; background: rgba(0,0,0,0.55); padding: 0 6px; border-radius: 6px; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hud-buttons { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; background: rgba(18,12,58,0.75); border: 2px solid rgba(255,255,255,0.15); padding: 6px; border-radius: 16px; backdrop-filter: blur(4px); }
+.hud-btn { display: flex; flex-direction: column; align-items: center; gap: 1px; min-width: 50px; padding: 5px 6px 3px; border-radius: 12px; border: 2px solid transparent; background: rgba(255,255,255,0.08); color: #fff; font: inherit; font-size: 1.25rem; line-height: 1.1; cursor: pointer; }
+.hud-btn span { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.85; }
+.hud-btn:hover:not(:disabled) { background: rgba(255,255,255,0.18); transform: translateY(-1px); }
+.hud-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.hud-btn.on { border-color: #06d6a0; }
+.hud-btn.off { border-color: #ef476f; }
+.hud-btn.danger:hover { background: #e63946; }
+.hud-btn.emote { min-width: 42px; }
+.hud-sep { width: 2px; align-self: stretch; background: rgba(255,255,255,0.15); margin: 2px 2px; }
+
+.splat { position: absolute; inset: 0; z-index: 7; pointer-events: none; animation: splat 1.6s ease-out forwards;
+  background:
+    radial-gradient(circle at 20% 30%, rgba(255,0,110,0.55) 0 8%, transparent 9%),
+    radial-gradient(circle at 75% 25%, rgba(255,190,11,0.55) 0 6%, transparent 7%),
+    radial-gradient(circle at 60% 70%, rgba(6,214,160,0.5) 0 10%, transparent 11%),
+    radial-gradient(circle at 30% 75%, rgba(58,134,255,0.5) 0 7%, transparent 8%),
+    radial-gradient(circle at 85% 65%, rgba(131,56,236,0.5) 0 5%, transparent 6%),
+    radial-gradient(circle, transparent 50%, rgba(255,0,110,0.35));
+}
+.splat-text { position: absolute; top: 34%; width: 100%; text-align: center; font-size: 2rem; font-weight: 900; color: #fff3b0; text-shadow: 0 3px 0 #ff006e, 0 0 20px rgba(0,0,0,0.5); transform: rotate(-3deg); }
+@keyframes splat { 0% { opacity: 0; transform: scale(1.1); } 10% { opacity: 1; transform: scale(1); } 70% { opacity: 1; } 100% { opacity: 0; } }
+
+.hud-pause { position: absolute; inset: 0; z-index: 8; display: grid; place-items: center; background: rgba(18, 12, 58, 0.35); padding: 16px; }
+.pause-card { background: #fffaf0; color: #16161d; border-radius: 22px; border: 4px solid #2b2d42; box-shadow: 0 10px 0 #2b2d42; padding: 22px 26px; max-width: 520px; text-align: center; }
+.pause-card h2 { font-size: 1.8rem; font-weight: 900; color: #ff006e; margin-bottom: 0.2em; transform: rotate(-1.5deg); }
+.pause-card .muted { color: #5d5d6e; }
+.pause-card .btn-primary { background: #ff006e; border-color: #ff006e; }
+.keys { margin-top: 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px 14px; text-align: left; font-size: 0.82rem; color: #2b2d42; }
+kbd { display: inline-block; min-width: 1.6em; text-align: center; background: #2b2d42; color: #fff; border-radius: 5px; padding: 0 5px; margin-right: 2px; font: 700 0.75rem ui-monospace, monospace; box-shadow: 0 2px 0 #000; }
+
+.world-panel { position: absolute; right: 14px; top: 290px; bottom: 120px; z-index: 6; width: min(300px, 90vw); border-radius: 16px; border: 2px solid rgba(255,255,255,0.15); background: rgba(18,12,58,0.88); color: #fff; }
+.world-panel .btn { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2); color: #fff; }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; }
+
+.color-picker { display: flex; flex-direction: column; gap: 0.4rem; }
+.swatch { width: 30px; height: 30px; border-radius: 50%; border: 3px solid transparent; cursor: pointer; box-shadow: 0 0 0 1px var(--border); }
+.swatch.selected { border-color: var(--text); transform: scale(1.12); }
+
+@media (max-width: 720px) {
+  .hud-chat { bottom: 170px; }
+  .selfview { width: 88px; height: 66px; }
+  .minimap { width: 84px; height: 134px; }
+  .world-panel { top: 220px; }
+}
+
+.hud-resume { position: absolute; left: 50%; top: 58%; transform: translateX(-50%); z-index: 6; background: rgba(18,12,58,0.75); padding: 6px 14px; border-radius: 999px; font-size: 0.85rem; font-weight: 700; pointer-events: none; white-space: nowrap; }

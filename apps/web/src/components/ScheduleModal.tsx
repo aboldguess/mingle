@@ -46,10 +46,10 @@ export function ScheduleModal({ orgId, onClose, onCreated }: { orgId: string; on
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <form className="card modal stack" onClick={(e) => e.stopPropagation()} onSubmit={submit} aria-label="Schedule a meeting">
-        <h2>Schedule a meeting</h2>
+      <form className="card modal stack" onClick={(e) => e.stopPropagation()} onSubmit={submit} aria-label="Schedule an event">
+        <h2>Schedule an event</h2>
         {error && <div className="error">{error}</div>}
-        <label>Title<input required maxLength={200} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Weekly team sync" /></label>
+        <label>Title<input required maxLength={200} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Friday mixer, All-hands keynote…" /></label>
         <div className="row" style={{ flexWrap: 'nowrap' }}>
           <label style={{ flex: 2 }}>Starts<input type="datetime-local" required value={form.start} onChange={(e) => setForm({ ...form, start: e.target.value })} /></label>
           <label style={{ flex: 1 }}>
@@ -61,8 +61,8 @@ export function ScheduleModal({ orgId, onClose, onCreated }: { orgId: string; on
         </div>
         <label>Description<textarea rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></label>
         <label className="check"><input type="checkbox" checked={form.allowGuests} onChange={(e) => setForm({ ...form, allowGuests: e.target.checked })} />Allow guests without an account</label>
-        <label className="check"><input type="checkbox" checked={form.waitingRoom} onChange={(e) => setForm({ ...form, waitingRoom: e.target.checked })} />Waiting room for people outside the team</label>
-        <label className="check"><input type="checkbox" checked={form.muteOnEntry} onChange={(e) => setForm({ ...form, muteOnEntry: e.target.checked })} />Mute participants when they join</label>
+        <label className="check"><input type="checkbox" checked={form.waitingRoom} onChange={(e) => setForm({ ...form, waitingRoom: e.target.checked })} />Queue at the door for people outside the team</label>
+        <label className="check"><input type="checkbox" checked={form.muteOnEntry} onChange={(e) => setForm({ ...form, muteOnEntry: e.target.checked })} />Mute people when they arrive</label>
         <div className="row" style={{ justifyContent: 'flex-end' }}>
           <button type="button" className="btn" onClick={onClose}>Cancel</button>
           <button className="btn btn-primary" disabled={busy}>Schedule</button>

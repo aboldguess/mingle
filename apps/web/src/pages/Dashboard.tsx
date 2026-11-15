@@ -35,7 +35,7 @@ export function DashboardPage() {
 
   const startNow = async () => {
     try {
-      const { meeting } = await api<{ meeting: Meeting }>(`/orgs/${orgId}/meetings`, { body: { title: `${details.org.name} meeting` } });
+      const { meeting } = await api<{ meeting: Meeting }>(`/orgs/${orgId}/meetings`, { body: { title: `${details.org.name} mixer` } });
       navigate(`/m/${meeting.code}`);
     } catch (e) {
       setError((e as Error).message);
@@ -57,16 +57,16 @@ export function DashboardPage() {
   return (
     <div className="stack">
       <div className="row spread">
-        <h1 style={{ margin: 0 }}>Meetings</h1>
+        <h1 style={{ margin: 0 }}>Events</h1>
         <div className="row">
           <button className="btn" onClick={() => setScheduling(true)}>Schedule</button>
-          <button className="btn btn-primary" onClick={startNow}>Start a meeting now</button>
+          <button className="btn btn-primary" onClick={startNow}>Open a venue now</button>
         </div>
       </div>
       {details.org.effectivePlan === 'free' && (
         <div className="notice">
-          Free plan: meetings end after {details.limits.maxMeetingMinutes} minutes.{' '}
-          {details.role !== 'member' && <a href={`/app/${orgId}/billing`}>Upgrade for longer meetings</a>}
+          Free plan: events end after {details.limits.maxMeetingMinutes} minutes.{' '}
+          {details.role !== 'member' && <a href={`/app/${orgId}/billing`}>Upgrade for longer events</a>}
         </div>
       )}
       {error && <div className="error">{error}</div>}
@@ -78,7 +78,7 @@ export function DashboardPage() {
         {meetings === null ? (
           <p className="muted">Loading…</p>
         ) : meetings.length === 0 ? (
-          <p className="muted">{scope === 'upcoming' ? 'No upcoming meetings. Start one now or schedule one for later.' : 'No past meetings yet.'}</p>
+          <p className="muted">{scope === 'upcoming' ? 'No upcoming events. Open a venue now or schedule one for later.' : 'No past events yet.'}</p>
         ) : (
           meetings.map((m) => (
             <div className="meeting-item" key={m.id}>
@@ -98,7 +98,7 @@ export function DashboardPage() {
                   <button className="btn btn-sm" onClick={() => copy(m)}>{copied === m.id ? 'Copied!' : 'Copy link'}</button>
                   <button className="btn btn-sm" onClick={() => downloadIcs(m)}>Add to calendar</button>
                   {scope === 'upcoming' && <button className="btn btn-sm btn-danger" onClick={() => cancel(m)}>Cancel</button>}
-                  <button className="btn btn-sm btn-primary" onClick={() => navigate(`/m/${m.code}`)}>{m.status === 'live' ? 'Join' : 'Start'}</button>
+                  <button className="btn btn-sm btn-primary" onClick={() => navigate(`/m/${m.code}`)}>{m.status === 'live' ? 'Enter venue' : 'Open venue'}</button>
                 </div>
               )}
             </div>

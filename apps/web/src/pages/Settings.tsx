@@ -30,7 +30,7 @@ export function SettingsPage() {
         <label>Organisation name<input required value={name} onChange={(e) => setName(e.target.value)} /></label>
         <label className="check">
           <input type="checkbox" checked={membersOnly} onChange={(e) => setMembersOnly(e.target.checked)} />
-          Members-only meetings: only signed-in members of this organisation can join any meeting
+          Members-only events: only signed-in members of this organisation can enter any venue
         </label>
         <div><button className="btn btn-primary">{saved ? 'Saved' : 'Save changes'}</button></div>
       </div>
