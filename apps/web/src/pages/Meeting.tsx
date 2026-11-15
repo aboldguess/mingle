@@ -3,7 +3,7 @@ import { DisconnectReason, Room, RoomEvent, VideoPresets } from 'livekit-client'
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError, formatWhen, type JoinResult } from '../api';
-import { AvatarColorPicker, savedAvatarColor } from '../components/AvatarColorPicker';
+import { AvatarColorPicker, ProfileFields, savedAvatarColor, savedProfile, type ProfileInput } from '../components/AvatarColorPicker';
 import { Logo } from '../components/Logo';
 import { useSession } from '../session';
 import { venueAudioContext } from '../world/session';
@@ -37,6 +37,7 @@ export function MeetingPage() {
   const [phase, setPhase] = useState<Phase>({ kind: 'loading' });
   const [joinError, setJoinError] = useState<string | null>(null);
   const [color, setColor] = useState(savedAvatarColor);
+  const [profile, setProfile] = useState(savedProfile);
 
   useEffect(() => {
     if (sessionLoading) return;
@@ -83,7 +84,7 @@ export function MeetingPage() {
   }, [phase, code]);
 
   if (phase.kind === 'room' && info) {
-    return <LiveVenue info={info} join={phase.join} choices={phase.choices} color={color} onLeave={(reason) => setPhase({ kind: 'left', reason })} />;
+    return <LiveVenue info={info} join={phase.join} choices={phase.choices} color={color} profile={profile} onLeave={(reason) => setPhase({ kind: 'left', reason })} />;
   }
 
   return (
@@ -120,6 +121,7 @@ export function MeetingPage() {
                 onError={(e) => setJoinError(`Camera or microphone problem: ${e.message}. You can still join with them off.`)}
               />
             </div>
+            <ProfileFields value={profile} onChange={setProfile} />
             <AvatarColorPicker value={color} onChange={setColor} />
             <p className="small muted" style={{ margin: 0 }}>Your webcam becomes the face on your avatar’s telly head. Walk up to people to talk.</p>
             {!me && <p className="small muted">Have an account? <Link to={`/login?next=/m/${code}`}>Sign in</Link> to join as yourself.</p>}
@@ -159,7 +161,7 @@ function reasonText(reason?: DisconnectReason): string {
 }
 
 /** Connects to the LiveKit room, then drops you into the 3D venue. */
-function LiveVenue({ info, join, choices, color, onLeave }: { info: MeetingInfo; join: JoinResult; choices: LocalUserChoices; color: string; onLeave: (reason: string) => void }) {
+function LiveVenue({ info, join, choices, color, profile, onLeave }: { info: MeetingInfo; join: JoinResult; choices: LocalUserChoices; color: string; profile: ProfileInput; onLeave: (reason: string) => void }) {
   const navigate = useNavigate();
   const [room, setRoom] = useState<Room | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -228,6 +230,7 @@ function LiveVenue({ info, join, choices, color, onLeave }: { info: MeetingInfo;
       room={room}
       name={choices.username || room.localParticipant.name || 'Guest'}
       color={color}
+      profile={profile}
       title={info.title}
       code={info.code}
       isHost={join.isHost}

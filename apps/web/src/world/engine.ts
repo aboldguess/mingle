@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Avatar } from './avatar';
-import { AUDITORIUM, blocked, buildVenue, groundAt, LOBBY, STAGE, type Venue, type Zone } from './venue';
+import { AUDITORIUM, blocked, buildVenue, groundAt, LOBBY, PODS, STAGE, type Venue, type Zone } from './venue';
 
 /** What every client broadcasts about itself several times a second. */
 export interface PlayerState {
@@ -22,6 +22,8 @@ export interface WorldEvents {
   onPointerLockChange?: (locked: boolean) => void;
   /** Someone else's projectile hit the local player (only trusted in solo mode; live mode uses messages). */
   onLocalHit?: (ownerId: string) => void;
+  /** Tried to fire somewhere confetti isn't allowed (outside the lobby). */
+  onBlockedFire?: () => void;
 }
 
 interface Remote {
@@ -110,7 +112,7 @@ export class World {
     container.appendChild(this.renderer.domElement);
 
     this.scene.background = skyGradient();
-    this.scene.fog = new THREE.Fog('#2a1b4d', 45, 110);
+    this.scene.fog = new THREE.Fog('#3a4150', 45, 110);
     this.venue = buildVenue();
     this.scene.add(this.venue.group);
 
@@ -372,9 +374,15 @@ export class World {
 
   // ------------------------------------------------------------------ blaster
 
-  private fire() {
+  fire() {
     const now = performance.now();
     if (now - this.lastShot < 250) return;
+    // Confetti is a lobby thing: talks and private pods stay distraction free.
+    if (this.zone !== 'lobby') {
+      this.lastShot = now;
+      this.events.onBlockedFire?.();
+      return;
+    }
     this.lastShot = now;
     const dir = new THREE.Vector3();
     this.camera.getWorldDirection(dir);
@@ -512,7 +520,15 @@ export class World {
     this.camera.rotation.set(this.pitch, this.yaw, 0, 'YXZ');
     if (this.thirdPerson) {
       const back = new THREE.Vector3(0, 0, 1).applyEuler(this.camera.rotation);
-      this.camera.position.copy(eye).addScaledVector(back, 3.4).add(new THREE.Vector3(0, 0.5, 0));
+      // Pull the camera in rather than through a wall behind you.
+      let dist = 0.4;
+      while (dist < 3.4) {
+        const x = eye.x + back.x * (dist + 0.2);
+        const z = eye.z + back.z * (dist + 0.2);
+        if (blocked(this.venue.boxes, x, z, this.pos.y + 0.3, 0.15, 0)) break;
+        dist += 0.2;
+      }
+      this.camera.position.copy(eye).addScaledVector(back, dist).add(new THREE.Vector3(0, 0.5 * (dist / 3.4), 0));
     } else {
       this.camera.position.copy(eye);
     }
@@ -540,6 +556,55 @@ export class World {
     if (now - this.lastSent.t < interval) return;
     this.lastSent = { t: now, s };
     this.events.onLocalState?.(s);
+  }
+
+  /** Jump somewhere instantly (minimap click, "go to" a person, the host's call). */
+  teleport(x: number, z: number, yaw?: number) {
+    const y = groundAt(this.venue.boxes, x, z, 5, RADIUS, STEP_UP);
+    if (blocked(this.venue.boxes, x, z, y, RADIUS, STEP_UP)) return false;
+    this.pos.set(x, y, z);
+    this.vel.set(0, 0, 0);
+    if (yaw !== undefined) this.yaw = yaw;
+    this.forceSendState();
+    return true;
+  }
+
+  /** Teleport to stand just in front of someone, facing them. */
+  teleportTo(id: string) {
+    const p = this.remotePosition(id);
+    const r = this.remotes.get(id);
+    if (!p || !r) return false;
+    for (const dist of [1.6, 2.2, 1.2]) {
+      for (const turn of [0, 0.6, -0.6, 1.2, -1.2, Math.PI]) {
+        const a = r.yaw + turn;
+        const x = p.x - Math.sin(a) * dist;
+        const z = p.z - Math.cos(a) * dist;
+        if (this.teleport(x, z, Math.atan2(-(p.x - x), -(p.z - z)))) return true;
+      }
+    }
+    return false;
+  }
+
+  /** What's on the big screen right now, for the front-row view. */
+  screenSource(): HTMLVideoElement | HTMLCanvasElement | null {
+    if (this.screenVideo) return this.screenVideo;
+    const img = this.screenTex instanceof THREE.CanvasTexture ? (this.screenTex.image as HTMLCanvasElement) : null;
+    return img ?? null;
+  }
+
+  /** The id of the remote player closest to us within `range` metres. */
+  nearest(range = 3): string | null {
+    let best: string | null = null;
+    let bestD = range;
+    for (const r of this.remotes.values()) {
+      if (!r.hasState) continue;
+      const d = Math.hypot(r.pos.x - this.pos.x, r.pos.z - this.pos.z);
+      if (d < bestD) {
+        bestD = d;
+        best = r.id;
+      }
+    }
+    return best;
   }
 
   /** Re-announce our position right away, e.g. when someone new joins. */
@@ -579,6 +644,7 @@ export class World {
       r.avatar.root.position.copy(r.pos);
       r.avatar.root.rotation.y = r.yaw;
       r.avatar.update(dt, r.speed, r.pitch);
+      r.avatar.setViewDistance(r.avatar.root.position.distanceTo(this.camera.position));
     }
   }
 
@@ -656,23 +722,35 @@ export class World {
 
   // ------------------------------------------------------------------ minimap
 
-  drawMinimap(ctx: CanvasRenderingContext2D, names: (id: string) => { color: string } | undefined) {
-    const { width: w, height: h } = ctx.canvas;
+  private mapTransform(w: number, h: number) {
     const plan = this.venue.plan;
-    const sx = w / (plan.maxX - plan.minX);
-    const sz = h / (plan.maxZ - plan.minZ);
-    const s = Math.min(sx, sz);
+    const s = Math.min(w / (plan.maxX - plan.minX), h / (plan.maxZ - plan.minZ));
     const ox = (w - (plan.maxX - plan.minX) * s) / 2;
     const oz = (h - (plan.maxZ - plan.minZ) * s) / 2;
+    return { s, ox, oz, plan };
+  }
+
+  /** Convert a point on the minimap canvas back to the floor. */
+  minimapToWorld(u: number, v: number, w: number, h: number) {
+    const { s, ox, oz, plan } = this.mapTransform(w, h);
+    return { x: (u - ox) / s + plan.minX, z: (v - oz) / s + plan.minZ };
+  }
+
+  drawMinimap(ctx: CanvasRenderingContext2D, names: (id: string) => { color: string } | undefined) {
+    const { width: w, height: h } = ctx.canvas;
+    const { s, ox, oz, plan } = this.mapTransform(w, h);
     const px = (x: number) => ox + (x - plan.minX) * s;
     const pz = (z: number) => oz + (z - plan.minZ) * s;
+    const rect = (r: { minX: number; maxX: number; minZ: number; maxZ: number }) => ctx.fillRect(px(r.minX), pz(r.minZ), (r.maxX - r.minX) * s, (r.maxZ - r.minZ) * s);
     ctx.clearRect(0, 0, w, h);
-    ctx.fillStyle = 'rgba(255, 209, 102, 0.35)';
-    ctx.fillRect(px(LOBBY.minX), pz(LOBBY.minZ), (LOBBY.maxX - LOBBY.minX) * s, (LOBBY.maxZ - LOBBY.minZ) * s);
-    ctx.fillStyle = 'rgba(114, 9, 183, 0.45)';
-    ctx.fillRect(px(AUDITORIUM.minX), pz(AUDITORIUM.minZ), (AUDITORIUM.maxX - AUDITORIUM.minX) * s, (AUDITORIUM.maxZ - AUDITORIUM.minZ) * s);
-    ctx.fillStyle = 'rgba(255, 107, 53, 0.8)';
-    ctx.fillRect(px(STAGE.minX), pz(STAGE.minZ), (STAGE.maxX - STAGE.minX) * s, (STAGE.maxZ - STAGE.minZ) * s);
+    ctx.fillStyle = 'rgba(228, 220, 205, 0.35)';
+    rect(LOBBY);
+    ctx.fillStyle = 'rgba(70, 76, 90, 0.6)';
+    rect(AUDITORIUM);
+    ctx.fillStyle = 'rgba(232, 220, 192, 0.55)';
+    rect(STAGE);
+    ctx.fillStyle = 'rgba(160, 200, 214, 0.45)';
+    for (const pod of Object.values(PODS)) rect(pod);
     ctx.fillStyle = 'rgba(255,255,255,0.35)';
     for (const b of this.venue.boxes) {
       if (b.top < 0.9 || b.top > 50) continue;
@@ -713,9 +791,9 @@ function skyGradient(): THREE.Texture {
   c.height = 256;
   const ctx = c.getContext('2d')!;
   const g = ctx.createLinearGradient(0, 0, 0, 256);
-  g.addColorStop(0, '#120c3a');
-  g.addColorStop(0.55, '#5a189a');
-  g.addColorStop(1, '#ff7aa2');
+  g.addColorStop(0, '#1d2230');
+  g.addColorStop(0.6, '#3d4659');
+  g.addColorStop(1, '#8f97a6');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 2, 256);
   const tex = new THREE.CanvasTexture(c);

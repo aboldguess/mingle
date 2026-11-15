@@ -99,7 +99,7 @@ export function banner(lines: string[], bg: string, fg: string): THREE.CanvasTex
   return canvasTexture(1024, 256, (ctx, w, h) => {
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, w, h);
-    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    ctx.fillStyle = 'rgba(255,255,255,0.04)';
     for (let x = -h; x < w; x += 60) {
       ctx.beginPath();
       ctx.moveTo(x, h);
@@ -179,4 +179,16 @@ export function shade(hex: string, amount: number): string {
   if (amount > 0) c.lerp(new THREE.Color('#ffffff'), amount);
   else c.lerp(new THREE.Color('#000000'), -amount);
   return `#${c.getHexString()}`;
+}
+
+/** Plain lettering for signage: readable, no glow. */
+export function plaque(text: string, color: string, width = 1024, height = 256, font = '700 120px system-ui, sans-serif'): THREE.CanvasTexture {
+  return canvasTexture(width, height, (ctx, w, h) => {
+    ctx.clearRect(0, 0, w, h);
+    ctx.font = font;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = color;
+    ctx.fillText(text, w / 2, h / 2);
+  });
 }

@@ -18,11 +18,20 @@ Delivered in incremental pull requests. Each phase is shippable.
 - Proximity voice with stereo panning, stage mic, distance-based video quality
 - Solo demo with bots at `/play`, landing page rebuilt around "Where Zoom Meets Doom"
 
+## Phase 1.6: Calmer venue and the Talking Heads ideas (done)
+- Calmer palette and a quiet HUD with familiar meeting controls and first-run tips
+- Front-row view, raise hand and pass the mic, teleport, call everyone in, announcements
+- Business cards with vCard/CSV export, "Ask me about" and "Here to" name tags, matchmaking nudges
+- Soundproof pods with shared whiteboards, host discussion groups on tables, venue branding
+- Voice levelling, live captions, gestures (nod, wave, lean in, shrug), avatar height/build/telly/props
+- Reconnect banner that puts you back where you were
+
 ## Next for the venue
-- More venues to pick per event (rooftop bar, expo hall with sponsor booths, breakout pods)
-- Sit in seats, a Q&A mic in the aisle, hand raise
-- Touch controls for phones and tablets
-- Custom avatar bodies and telly styles, team-branded venues
+- More venues to pick per event (rooftop bar, expo hall with sponsor booths); licensed copies of real venues
+- Paid avatar items (outfits, props, telly styles) and per-viewer sponsor placements with reporting
+- Sit in seats; touch controls for phones and tablets
+- LinkedIn/Slack profile import for name tags and matchmaking
+- AI voice clarity, live translation of captions, and auto-seating to get the most out of networking
 - Spectator count and replay of keynotes (LiveKit Egress)
 
 ## Phase 2: Launch hardening

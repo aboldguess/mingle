@@ -7,18 +7,46 @@ colleagues with (harmless) confetti.
 
 ![Keynote in the auditorium](docs/images/keynote.png)
 
-![Confetti in the lobby](docs/images/lobby.png)
+![The networking lobby](docs/images/lobby.png)
 
 ## What you can do
 
+**Get around**
 - **Walk around like an FPS.** WASD to move, mouse to look, Shift to sprint, Space to jump, V for a third-person view.
+- **Teleport.** Click the map to jump anywhere, or press Go next to someone in the People list to land beside them.
+- **Familiar controls.** Mute, video, share, people, chat and leave sit in a bottom bar like any meeting app; first-run tips teach the rest one at a time.
+
+**Meet people**
 - **Your face on a telly.** Your webcam is the picture on your avatar's CRT head. Camera off? You get a cartoon face that blinks and talks.
-- **Proximity voice.** People get louder as you approach and fade as you walk away, panned left and right. Walls between the lobby and the auditorium muffle chatter.
-- **Keynotes.** Step into the glowing ring on stage and your camera fills the big screen and your mic reaches every seat. Press P to share your screen instead. The audience is hushed while someone presents.
-- **Confetti cannon.** Click to fire. Hits splat the target's view and are counted on your HUD.
-- **Emotes and chat.** Keys 1 to 6 float an emoji over your head; Enter to chat, and your words appear in a speech bubble too.
-- **Real events.** Accounts, teams and roles, scheduled events with invite links and calendar files, guests without accounts, a queue at the door, host mute/remove/end, Free/Pro/Business plans through Stripe.
+- **Proximity voice.** People get louder as you approach and fade as you walk away, panned left and right so you can tell who spoke. Many conversations can happen in one room at once.
+- **Every voice heard.** Voice levelling evens out quiet and loud speakers (on by default, under More).
+- **Name tags that start conversations.** "Ask me about…" and "Here to…" float over everyone's head.
+- **Matchmaking.** Mingle nudges you towards people who can help with what you're here for, with a "Take me there" button.
+- **Business cards.** Press E next to someone to hand over your card; export everything you collect as vCards or CSV.
+- **Soundproof pods** in the back corners, each with a shared whiteboard (press B to draw).
+- **Body language.** 7 nod, 8 wave, 9 lean in, 0 shrug; 1 to 6 float an emoji; Enter to chat.
+- **Live captions** of your own speech appear over your head and in the chat (Chrome and Edge).
+- **Make it yours.** Height, build, retro or flat-screen telly, and a conversation starter: coffee mug, festive jumper, headphones or a conference lanyard.
+
+**Watch a talk**
+- **Keynotes.** Step onto the stage and your camera fills the big screen and your mic reaches every seat. Press P to share your screen instead. The audience is hushed while someone presents.
+- **Front-row view.** Press F from anywhere to see the big screen full-size.
+- **Raise your hand** with R; the host can pass you the hall mic.
+
+**Run the event (hosts)**
+- **Discussion groups.** Split the room across tables in one click, drop in on any table, end groups when done; everyone stays in the one call.
+- **Call everyone in** to the auditorium, or send an announcement banner.
+- **Branding.** Put the event's name and a sponsor on the venue signage.
+- **Door queue, mute and remove**, plus accounts, teams, scheduled events with invite links and calendar files, guests without accounts, and Free/Pro/Business plans through Stripe.
+
+**Just for fun**
+- **Confetti cannon.** Click to fire, in the lobby only, so talks and private chats stay focused.
 - **Solo demo.** `/play` drops you in a venue full of friendly bots, no sign-up needed.
+
+| | |
+| --- | --- |
+| ![Discussion groups](docs/images/groups.png) | ![Pod whiteboard](docs/images/whiteboard.png) |
+| ![Host tools](docs/images/host-tools.png) | ![Captions, voice levelling and body language](docs/images/more-menu.png) |
 
 ## Run it on your computer (Windows, macOS or Linux)
 

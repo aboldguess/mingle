@@ -38,13 +38,19 @@ Stripe. This document explains how the pieces fit.
 | `avatar.ts` | Telly-headed avatar: body, walk animation, CRT screen that shows a `VideoTexture` of the webcam or a cartoon face, name tag, emote and chat bubbles, speaking light. |
 | `engine.ts` | `World`: renderer, game loop, pointer-lock FPS controls with step-up/jump/collision, remote interpolation, confetti projectiles and particles, big-screen texture, minimap. Network agnostic. |
 | `session.ts` | `WorldSession`: glue to a LiveKit `Room`. Sends and receives state over data messages, maps tracks to faces and the big screen, mixes voices. |
-| `bots.ts` | Pretend attendees and a keynote slide deck for the solo demo and the landing page backdrop. |
-| `WorldView.tsx` | React HUD: self view, mic/cam/present buttons, emotes, chat, minimap, people list, help card. |
+| `bots.ts` | Pretend attendees (with tags, goals, looks and gestures) and a keynote slide deck for the solo demo and the landing page backdrop. |
+| `whiteboard.ts` | Pod whiteboard strokes: validation and painting onto the boards' canvas textures. |
+| `match.ts` | Matchmaking: keyword overlap between "Here to…" goals and "Ask me about…" tags. |
+| `captions.ts` | Live captions of your own speech with the browser's speech recognition. |
+| `panels.tsx` | People panel (host tools, groups, branding, matches), business cards and the whiteboard editor. |
+| `WorldView.tsx` | React HUD: self view, meeting controls, emotes, chat, minimap, tips, front-row view, More menu, help card. |
 
 Networking uses LiveKit only; there is no separate game server.
 
 - **Movement**: each client publishes `{x, y, z, yaw, pitch, colour}` on the `mingle` data topic, lossy, up to ~12 times a second while moving and once a second when idle. Receivers interpolate. Everything a client receives is validated before use.
-- **Events**: emotes (allow-listed emoji), confetti shots (origin + direction, every client simulates the same arc), hits (sent by the shooter) and chat go over the same topic, reliably.
+- **Events**: emotes (allow-listed emoji), confetti shots (origin + direction, every client simulates the same arc), hits (sent by the shooter), chat, captions, gestures, profiles (tag, goal, contact, avatar look), business cards, raised hands and whiteboard strokes go over the same topic, reliably. Host-only messages (mic holder, summon, announcement, discussion groups, branding) are ignored unless the sender's token metadata marks them as host. Each client re-sends its profile, hand, strokes and (if host) mic holder and branding when someone joins or it reconnects.
+- **Voice levelling**: each remote microphone runs through a `DynamicsCompressorNode` and make-up gain before its panner, so quiet voices are lifted and loud ones tamed.
+- **Pods**: anyone inside a pod is silent to everyone outside it, and vice versa.
 - **Proximity voice**: remote microphones are routed through one shared `AudioContext` (the room's `webAudioMix`), with a `StereoPannerNode` per speaker. Every 120 ms volume is set from distance (full under 2.5 m, silent beyond ~16 m), cut to 30% through the lobby/auditorium wall. Someone on stage is heard at full volume across the auditorium, and the audience is halved while they present.
 - **Bandwidth**: adaptive stream is off; instead each remote camera's simulcast layer is chosen by distance (high under 6 m, medium under 14 m, low beyond, paused beyond 32 m). Presenters always get high.
 - **Big screen**: a screen share wins; otherwise the camera of whoever stands on stage; otherwise the idle card. Screen sharing is offered only on stage.

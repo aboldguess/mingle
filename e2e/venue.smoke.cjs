@@ -1,5 +1,6 @@
 const { chromium } = require('playwright');
 // Two people in a live venue: avatars sync, webcam faces, chat, the stage screen,
+// cards, hands and the mic, pods, whiteboards, groups, branding, teleport,
 // confetti hits and host removal.
 // Usage: start livekit-server --dev and the app (API on 3000, web on 5173 or the
 // built app on 3000), then: BASE_URL=http://localhost:5173 node e2e/venue.smoke.cjs
@@ -95,6 +96,67 @@ async function until(page, fn, arg, what, timeout = 15000) {
   await W(host, () => { const w = window.__mingleWorld; w.yaw = 0; w.pitch = 0; });
   await host.waitForTimeout(1500);
   await host.screenshot({ path: `${SHOTS}/venue-face-to-face.png` });
+
+  // Name tags: "Ask me about" / "Here to" and avatar looks travel with the profile.
+  await W(guest, () => window.__mingleSession.setProfile({ tag: 'pitch decks', goal: 'find funding', contact: 'gina@example.com', look: { height: 1.08, build: 0.9, tv: 'flat', prop: 'mug' } }));
+  await until(host, () => [...window.__mingleSession.profiles.values()].some((p) => p.goal === 'find funding' && p.look.prop === 'mug' && p.look.tv === 'flat'), null, 'guest profile to sync');
+  check(true, 'profile goals and avatar looks sync');
+
+  // Body language.
+  await W(guest, () => window.__mingleSession.gesture('wave'));
+  await until(host, () => { const w = window.__mingleWorld; return w.getAvatar(w.remoteIds()[0]).gesture?.kind === 'wave'; }, null, 'wave to show');
+  check(true, 'gestures sync');
+
+  // Business cards: the guest hands theirs to the host.
+  const hostId = await W(host, () => window.__mingleSession.room.localParticipant.identity);
+  const guestId = await W(guest, () => window.__mingleSession.room.localParticipant.identity);
+  await W(guest, (id) => window.__mingleSession.giveCard(id), hostId);
+  await host.waitForSelector('.hud-btn:has-text("Cards 1")');
+  check(true, 'business card arrives');
+
+  // Raise a hand, host passes the mic.
+  await W(guest, () => window.__mingleSession.setHand(true));
+  await until(host, (id) => window.__mingleSession.hands.has(id), guestId, 'raised hand to show');
+  await W(host, (id) => window.__mingleSession.passMic(id), guestId);
+  await until(guest, (id) => window.__mingleSession.micHolder === id && !window.__mingleSession.handUp, guestId, 'mic to reach the guest');
+  await W(host, () => window.__mingleSession.passMic(null));
+  check(true, 'raise hand and pass the mic');
+
+  // Soundproof pods: guest steps into a pod right next to the host outside.
+  await W(guest, () => { const w = window.__mingleWorld; w.pos.set(-14, 0, 24.5); });
+  await W(host, () => { const w = window.__mingleWorld; w.pos.set(-14, 0, 22.5); });
+  await until(host, (fn) => eval(fn)() === 0, vol.toString(), 'pod to block sound');
+  check(true, 'pods are soundproof');
+
+  // Shared whiteboard.
+  await W(guest, () => window.__mingleSession.stroke({ b: 'podA', c: '#c8505f', w: 30, p: [500, 500, 600, 500] }));
+  await until(host, () => { const d = window.__mingleWorld.venue.boards.podA.canvas.getContext('2d').getImageData(560, 288, 1, 1).data; return d[0] > 150 && d[1] < 120; }, null, 'stroke to appear on the host board');
+  check(true, 'whiteboard strokes sync');
+
+  // Discussion groups and branding from the host tools.
+  await host.keyboard.press('Tab');
+  await host.selectOption('.host-tools select', '2');
+  await host.click('button:has-text("Split the room")');
+  await guest.waitForSelector('text=split the room into discussion groups');
+  const nearTable = await W(guest, () => { const w = window.__mingleWorld; return w.venue.groupTables.some((t) => Math.hypot(t.x - w.pos.x, t.y - w.pos.z) < 2); });
+  check(nearTable, 'discussion groups seat people at tables');
+  await host.click('button:has-text("End groups")');
+  await host.fill('input[placeholder^="Event name"]', 'Cambridge Tech Week');
+  await host.fill('input[placeholder^="Sponsor"]', 'Boondoggle');
+  await host.click('button:has-text("Update signs")');
+  await until(guest, () => window.__mingleSession.branding?.name === 'Cambridge Tech Week', null, 'branding to reach the guest');
+  check(true, 'host branding reaches everyone');
+  await host.keyboard.press('Tab');
+
+  // Teleport next to someone.
+  await W(host, (id) => window.__mingleWorld.teleportTo(id), guestId);
+  const close = await W(host, (id) => { const w = window.__mingleWorld; const p = w.remotePosition(id); return p && Math.hypot(p.x - w.pos.x, p.z - w.pos.z) < 3; }, guestId);
+  check(close, 'teleport lands next to them');
+
+  // Back to face to face for the confetti test.
+  await W(guest, () => { const w = window.__mingleWorld; w.pos.set(0, 0, 11.5); w.yaw = Math.PI; });
+  await W(host, () => { const w = window.__mingleWorld; w.pos.set(0, 0, 14.5); w.yaw = 0; w.pitch = 0; });
+  await until(host, () => { const w = window.__mingleWorld; const p = w.remotePosition(w.remoteIds()[0]); return p && Math.abs(p.z - 11.5) < 0.3; }, null, 'guest to come back');
 
   // Confetti: host shoots the guest.
   await W(host, () => { const w = window.__mingleWorld; w.yaw = 0; w.pitch = -0.05; });
