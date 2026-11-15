@@ -1,0 +1,16 @@
+# LiveKit config for local development only. Production: see docs/DEPLOYMENT.md.
+port: 7880
+rtc:
+  tcp_port: 7881
+  udp_port: 7882
+  use_external_ip: false
+  # Advertise loopback so a browser on the same machine can reach the container.
+  node_ip: 127.0.0.1
+keys:
+  devkey: devsecret-change-me-devsecret-change-me
+webhook:
+  api_key: devkey
+  urls:
+    - http://app:3000/api/webhooks/livekit
+logging:
+  level: info

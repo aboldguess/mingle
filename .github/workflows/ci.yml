@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: mingle
+          POSTGRES_PASSWORD: mingle
+          POSTGRES_DB: mingle_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U mingle"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgres://mingle:mingle@localhost:5432/mingle_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: Check migrations are up to date
+        run: |
+          (cd apps/server && npx drizzle-kit generate --name ci_check)
+          git status --porcelain apps/server/drizzle | tee /tmp/drift
+          test ! -s /tmp/drift || (echo "Schema changed without a migration. Run npm run db:generate." && exit 1)
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t mingle:ci .
