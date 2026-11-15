@@ -97,3 +97,16 @@ describe('billing', () => {
     expect(info.data.org.effectivePlan).toBe('free');
   });
 });
+
+describe('seat sync', () => {
+  it('updates the Stripe quantity when a member joins', async () => {
+    const owner = await signUp(ctx.app);
+    await db.update(organizations).set({ plan: 'pro', subscriptionStatus: 'active', stripeSubscriptionId: 'sub_seats' }).where(eq(organizations.id, owner.orgId));
+    vi.spyOn(ctx.stripe.subscriptions, 'retrieve').mockResolvedValue({ items: { data: [{ id: 'si_1', quantity: 1 }] } } as never);
+    const update = vi.spyOn(ctx.stripe.subscriptionItems, 'update').mockResolvedValue({} as never);
+    const invitee = await signUp(ctx.app, 'Seat Person');
+    const inv = await owner.client.post(`/api/orgs/${owner.orgId}/invitations`, { email: invitee.email });
+    await invitee.client.post(`/api/orgs/invitations/${inv.data.inviteUrl.split('/invite/')[1]}/accept`);
+    expect(update).toHaveBeenCalledWith('si_1', { quantity: 2, proration_behavior: 'create_prorations' });
+  });
+});

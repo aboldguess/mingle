@@ -32,7 +32,7 @@ function toHttpUrl(url: string): string {
 }
 
 export function createLiveKitService(config: Config): MediaService {
-  const rooms = new RoomServiceClient(toHttpUrl(config.LIVEKIT_URL), config.LIVEKIT_API_KEY, config.LIVEKIT_API_SECRET);
+  const rooms = new RoomServiceClient(config.LIVEKIT_API_URL ?? toHttpUrl(config.LIVEKIT_URL), config.LIVEKIT_API_KEY, config.LIVEKIT_API_SECRET);
   const receiver = new WebhookReceiver(config.LIVEKIT_API_KEY, config.LIVEKIT_API_SECRET);
 
   return {

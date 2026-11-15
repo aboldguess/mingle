@@ -1,0 +1,46 @@
+# Local full stack: Postgres + LiveKit (dev keys) + Mingle.
+#   docker compose up --build   then open http://localhost:3000
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: mingle
+      POSTGRES_PASSWORD: mingle
+      POSTGRES_DB: mingle
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mingle"]
+      interval: 5s
+      retries: 10
+
+  livekit:
+    image: livekit/livekit-server:v1.13.11
+    command: --config /etc/livekit.yaml
+    volumes: ["./deploy/livekit.dev.yaml:/etc/livekit.yaml:ro"]
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+      - "7882:7882/udp"
+
+  app:
+    build: .
+    depends_on:
+      postgres: { condition: service_healthy }
+      livekit: { condition: service_started }
+    environment:
+      DATABASE_URL: postgres://mingle:mingle@postgres:5432/mingle
+      APP_URL: http://localhost:3000
+      LIVEKIT_URL: ws://localhost:7880
+      LIVEKIT_API_URL: http://livekit:7880
+      LIVEKIT_API_KEY: devkey
+      LIVEKIT_API_SECRET: devsecret-change-me-devsecret-change-me
+      # Optional: Stripe test-mode keys to try upgrades locally.
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      STRIPE_PRICE_PRO: ${STRIPE_PRICE_PRO:-}
+      STRIPE_PRICE_BUSINESS: ${STRIPE_PRICE_BUSINESS:-}
+    ports: ["3000:3000"]
+
+volumes:
+  pgdata:

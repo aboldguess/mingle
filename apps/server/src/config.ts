@@ -29,7 +29,10 @@ const envSchema = z.object({
   /** Max sign-up/login attempts per IP per minute. */
   AUTH_RATE_LIMIT_PER_MIN: z.coerce.number().int().positive().default(10),
 
+  /** URL browsers use to reach LiveKit (ws:// or wss://). */
   LIVEKIT_URL: z.string().min(1),
+  /** Optional URL the API uses for LiveKit's server API, when it differs (e.g. inside docker compose). */
+  LIVEKIT_API_URL: optional,
   LIVEKIT_API_KEY: z.string().min(1),
   LIVEKIT_API_SECRET: z.string().min(1),
 

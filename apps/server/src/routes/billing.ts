@@ -1,7 +1,9 @@
 import { eq } from 'drizzle-orm';
-import type { FastifyPluginAsync } from 'fastify';
+import type { FastifyBaseLogger, FastifyPluginAsync } from 'fastify';
+import type Stripe from 'stripe';
 import { z } from 'zod';
 import { billingEnabled, type Config } from '../config.js';
+import type { Db } from '../db/client.js';
 import { organizations } from '../db/schema.js';
 import { audit } from '../lib/audit.js';
 import { requireOrgRole, requireUser } from '../lib/auth.js';
@@ -20,6 +22,26 @@ export function planForPrice(config: Config, priceId: string | undefined): PlanI
   if (priceId === config.STRIPE_PRICE_PRO) return 'pro';
   if (priceId === config.STRIPE_PRICE_BUSINESS) return 'business';
   return null;
+}
+
+/**
+ * Keep the Stripe subscription quantity equal to the number of members, so
+ * per-seat billing follows the team as people join and leave. Best effort:
+ * a failure is logged and retried on the next membership change.
+ */
+export async function syncSeats(deps: { db: Db; stripe: Stripe | null }, orgId: string, log: FastifyBaseLogger): Promise<void> {
+  if (!deps.stripe) return;
+  try {
+    const [org] = await deps.db.select().from(organizations).where(eq(organizations.id, orgId));
+    if (!org?.stripeSubscriptionId || org.subscriptionStatus === 'canceled') return;
+    const quantity = Math.max(1, await memberCount(deps.db, orgId));
+    const sub = await deps.stripe.subscriptions.retrieve(org.stripeSubscriptionId);
+    const item = sub.items.data[0];
+    if (!item || item.quantity === quantity) return;
+    await deps.stripe.subscriptionItems.update(item.id, { quantity, proration_behavior: 'create_prorations' });
+  } catch (err) {
+    log.error({ err, orgId }, 'failed to sync subscription seats');
+  }
 }
 
 export const billingRoutes: FastifyPluginAsync = async (app) => {

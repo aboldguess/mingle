@@ -9,6 +9,7 @@ import { badRequest, conflict, forbidden, notFound, paymentRequired } from '../l
 import { billingEnabled } from '../config.js';
 import { effectivePlan, PLANS } from '../plans.js';
 import { createOrganization, memberCount, ownerCount } from '../services/orgs.js';
+import { syncSeats } from './billing.js';
 
 const role = z.enum(['owner', 'admin', 'member']);
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -106,6 +107,7 @@ export const orgRoutes: FastifyPluginAsync = async (app) => {
     }
     await db.delete(memberships).where(and(eq(memberships.orgId, ctx.org.id), eq(memberships.userId, target.userId)));
     await audit(db, req, { orgId: ctx.org.id, actorId: user.id, action: isSelf ? 'member.left' : 'member.removed', target: target.userId });
+    await syncSeats(app.deps, ctx.org.id, req.log);
     return { ok: true };
   });
 
@@ -179,6 +181,7 @@ export const orgRoutes: FastifyPluginAsync = async (app) => {
       await tx.update(invitations).set({ acceptedAt: new Date() }).where(eq(invitations.id, invite.id));
     });
     await audit(db, req, { orgId: invite.orgId, actorId: user.id, action: 'invitation.accepted', target: invite.email });
+    await syncSeats(app.deps, invite.orgId, req.log);
     return { orgId: invite.orgId };
   });
 
