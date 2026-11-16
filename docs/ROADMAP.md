@@ -2,7 +2,7 @@
 
 Delivered in incremental pull requests. Each phase is shippable.
 
-## Phase 1: Sellable core (this PR)
+## Phase 1: Accounts, teams and billing (done)
 - Accounts, organisations, roles (owner/admin/member), invitations
 - Scheduled and instant meetings with shareable links and calendar (.ics) invites
 - Multi-party video and audio over LiveKit, screen share, in-meeting chat
@@ -11,6 +11,28 @@ Delivered in incremental pull requests. Each phase is shippable.
 - Stripe Checkout, Customer Portal and webhooks
 - Audit log, security headers, rate limits, CSRF protection
 - Docker, docker compose, GitHub Actions CI, architecture and deployment docs
+
+## Phase 1.5: The venue (done)
+- First-person 3D venue with a networking lobby and an auditorium with a stage and big screen
+- Telly-headed avatars with webcam faces, emotes, chat bubbles and a confetti cannon
+- Proximity voice with stereo panning, stage mic, distance-based video quality
+- Solo demo with bots at `/play`, landing page rebuilt around "Where Zoom Meets Doom"
+
+## Phase 1.6: Calmer venue and the Talking Heads ideas (done)
+- Calmer palette and a quiet HUD with familiar meeting controls and first-run tips
+- Front-row view, raise hand and pass the mic, teleport, call everyone in, announcements
+- Business cards with vCard/CSV export, "Ask me about" and "Here to" name tags, matchmaking nudges
+- Soundproof pods with shared whiteboards, host discussion groups on tables, venue branding
+- Voice levelling, live captions, gestures (nod, wave, lean in, shrug), avatar height/build/telly/props
+- Reconnect banner that puts you back where you were
+
+## Next for the venue
+- More venues to pick per event (rooftop bar, expo hall with sponsor booths); licensed copies of real venues
+- Paid avatar items (outfits, props, telly styles) and per-viewer sponsor placements with reporting
+- Sit in seats; touch controls for phones and tablets
+- LinkedIn/Slack profile import for name tags and matchmaking
+- AI voice clarity, live translation of captions, and auto-seating to get the most out of networking
+- Spectator count and replay of keynotes (LiveKit Egress)
 
 ## Phase 2: Launch hardening
 - Transactional email (invitations, meeting invites, password reset, email verification) via a pluggable provider (Resend/SES/Postmark)
@@ -32,10 +54,9 @@ Delivered in incremental pull requests. Each phase is shippable.
 ## Phase 4: Product depth
 - Recurring meetings and Google/Outlook calendar integrations
 - Personal meeting rooms, meeting passcodes
-- Breakout rooms, hand raise, reactions, polls
+- Polls and live Q&A on the big screen
 - Background blur and noise suppression (LiveKit track processors)
 - Webinars (view-only attendees, large audiences via LiveKit's broadcast mode)
 - Persistent team chat and meeting notes
 - Usage analytics dashboard for admins
-- Optional "Spaces": the original 3D avatar world as a premium add-on
 - Mobile apps (React Native with LiveKit SDK)

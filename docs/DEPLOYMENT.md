@@ -90,6 +90,7 @@ CI (GitHub Actions) runs typecheck, tests, build, a migration drift check, a dep
 
 ### End-to-end smoke test
 
-With `livekit-server --dev` and the app running on port 3000 (built web app served via `WEB_DIST_DIR`),
-`node e2e/meeting.smoke.cjs` drives two Chromium browsers with fake cameras through sign-up, starting
-a meeting, a guest joining from the link, chat, and the host removing the guest. Requires Playwright.
+With `livekit-server --dev` and the app running (`npm run dev`), `BASE_URL=http://localhost:5173 node e2e/venue.smoke.cjs`
+drives two Chromium browsers with fake cameras through sign-up, opening a venue and a guest joining from
+the link, then checks avatar sync, webcam faces, proximity volume, chat, a confetti hit, the presenter on
+the big screen, the stage mic and the host removing the guest. Requires Playwright.

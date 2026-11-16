@@ -60,7 +60,7 @@ export function AppShell() {
           <div className="muted small" style={{ marginTop: '1rem' }}>{details.org.name}</div>
         )}
         <nav>
-          <NavLink end to={`/app/${orgId}`}>Meetings</NavLink>
+          <NavLink end to={`/app/${orgId}`}>Events</NavLink>
           <NavLink to={`/app/${orgId}/team`}>Team</NavLink>
           {isAdmin && <NavLink to={`/app/${orgId}/billing`}>Plan &amp; billing</NavLink>}
           {isAdmin && <NavLink to={`/app/${orgId}/settings`}>Settings</NavLink>}

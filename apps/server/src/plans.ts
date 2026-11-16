@@ -25,7 +25,7 @@ export const PLANS: Record<PlanId, PlanLimits> = {
     maxMeetingMinutes: 40,
     maxMembers: 3,
     monthlyPriceUsd: 0,
-    features: ['Meetings up to 40 minutes', 'Up to 100 participants', 'Screen sharing and chat', 'Guest invite links'],
+    features: ['Events up to 40 minutes', 'Up to 100 avatars per venue', 'Proximity voice, stage screen and chat', 'Guest invite links'],
   },
   pro: {
     name: 'Pro',
@@ -33,7 +33,7 @@ export const PLANS: Record<PlanId, PlanLimits> = {
     maxMeetingMinutes: 30 * 60,
     maxMembers: 50,
     monthlyPriceUsd: 14,
-    features: ['Meetings up to 30 hours', 'Up to 100 participants', 'Waiting room and host controls', 'Up to 50 team members'],
+    features: ['Events up to 30 hours', 'Up to 100 avatars per venue', 'Door queue and host controls', 'Up to 50 team members'],
   },
   business: {
     name: 'Business',
@@ -41,7 +41,7 @@ export const PLANS: Record<PlanId, PlanLimits> = {
     maxMeetingMinutes: 30 * 60,
     maxMembers: 1000,
     monthlyPriceUsd: 22,
-    features: ['Everything in Pro', 'Up to 300 participants', 'Audit log and admin console', 'SSO (SAML/OIDC) ready', 'Priority support'],
+    features: ['Everything in Pro', 'Up to 300 avatars per venue', 'Audit log and admin console', 'SSO (SAML/OIDC) ready', 'Priority support'],
   },
 };
 

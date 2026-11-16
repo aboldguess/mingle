@@ -1,10 +1,13 @@
-import { LiveKitRoom, PreJoin, RoomAudioRenderer, VideoConference, useParticipants, type LocalUserChoices } from '@livekit/components-react';
-import { DisconnectReason, type RoomOptions, VideoPresets } from 'livekit-client';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { PreJoin, type LocalUserChoices } from '@livekit/components-react';
+import { DisconnectReason, Room, RoomEvent, VideoPresets } from 'livekit-client';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError, formatWhen, type JoinResult } from '../api';
+import { AvatarColorPicker, ProfileFields, savedAvatarColor, savedProfile, type ProfileInput } from '../components/AvatarColorPicker';
 import { Logo } from '../components/Logo';
 import { useSession } from '../session';
+import { venueAudioContext } from '../world/session';
+import { WorldView } from '../world/WorldView';
 
 interface MeetingInfo {
   code: string;
@@ -33,14 +36,16 @@ export function MeetingPage() {
   const [info, setInfo] = useState<MeetingInfo | null>(null);
   const [phase, setPhase] = useState<Phase>({ kind: 'loading' });
   const [joinError, setJoinError] = useState<string | null>(null);
+  const [color, setColor] = useState(savedAvatarColor);
+  const [profile, setProfile] = useState(savedProfile);
 
   useEffect(() => {
     if (sessionLoading) return;
     api<MeetingInfo>(`/meetings/${code}`)
       .then((m) => {
         setInfo(m);
-        if (m.status === 'cancelled') setPhase({ kind: 'error', message: 'This meeting was cancelled.' });
-        else if (!me && !m.guestsAllowed) setPhase({ kind: 'error', message: 'Sign in to join this meeting.', signIn: true });
+        if (m.status === 'cancelled') setPhase({ kind: 'error', message: 'This event was cancelled.' });
+        else if (!me && !m.guestsAllowed) setPhase({ kind: 'error', message: 'Sign in to join this event.', signIn: true });
         else setPhase({ kind: 'prejoin' });
       })
       .catch((e) => setPhase({ kind: 'error', message: e.message }));
@@ -79,7 +84,7 @@ export function MeetingPage() {
   }, [phase, code]);
 
   if (phase.kind === 'room' && info) {
-    return <Room info={info} join={phase.join} choices={phase.choices} onLeave={(reason) => setPhase({ kind: 'left', reason })} />;
+    return <LiveVenue info={info} join={phase.join} choices={phase.choices} color={color} profile={profile} onLeave={(reason) => setPhase({ kind: 'left', reason })} />;
   }
 
   return (
@@ -110,19 +115,22 @@ export function MeetingPage() {
               <PreJoin
                 defaults={{ username: me?.user.name ?? '', videoEnabled: true, audioEnabled: true }}
                 persistUserChoices
-                joinLabel={info?.isHost ? 'Start meeting' : 'Join meeting'}
+                joinLabel={info?.isHost ? 'Open the venue' : 'Enter the venue'}
                 userLabel="Your name"
                 onSubmit={join}
                 onError={(e) => setJoinError(`Camera or microphone problem: ${e.message}. You can still join with them off.`)}
               />
             </div>
+            <ProfileFields value={profile} onChange={setProfile} />
+            <AvatarColorPicker value={color} onChange={setColor} />
+            <p className="small muted" style={{ margin: 0 }}>Your webcam becomes the face on your avatar’s telly head. Walk up to people to talk.</p>
             {!me && <p className="small muted">Have an account? <Link to={`/login?next=/m/${code}`}>Sign in</Link> to join as yourself.</p>}
           </>
         )}
         {phase.kind === 'waiting' && (
-          <div className="notice">Waiting for the host to let you in. Keep this page open.</div>
+          <div className="notice">You’re in the queue at the door. The host will let you in shortly, so keep this page open.</div>
         )}
-        {phase.kind === 'denied' && <div className="error">The host did not admit you to this meeting.</div>}
+        {phase.kind === 'denied' && <div className="error">The host did not let you into this event.</div>}
         {phase.kind === 'left' && (
           <>
             <div className="notice">{phase.reason}</div>
@@ -140,168 +148,99 @@ export function MeetingPage() {
 function reasonText(reason?: DisconnectReason): string {
   switch (reason) {
     case DisconnectReason.PARTICIPANT_REMOVED:
-      return 'The host removed you from the meeting.';
+      return 'The host removed you from the event.';
     case DisconnectReason.ROOM_DELETED:
-      return 'The meeting has ended.';
+      return 'The event has ended.';
     case DisconnectReason.DUPLICATE_IDENTITY:
-      return 'You joined this meeting from another tab or device.';
+      return 'You joined this event from another tab or device.';
     case DisconnectReason.CLIENT_INITIATED:
-      return 'You left the meeting.';
+      return 'You left the venue.';
     default:
-      return 'You were disconnected from the meeting.';
+      return 'You were disconnected from the event.';
   }
 }
 
-function Room({ info, join, choices, onLeave }: { info: MeetingInfo; join: JoinResult; choices: LocalUserChoices; onLeave: (reason: string) => void }) {
-  const options = useMemo<RoomOptions>(
-    () => ({
-      adaptiveStream: true,
-      dynacast: true,
-      videoCaptureDefaults: { deviceId: choices.videoDeviceId || undefined, resolution: VideoPresets.h720.resolution },
-      audioCaptureDefaults: { deviceId: choices.audioDeviceId || undefined, echoCancellation: true, noiseSuppression: true },
-      publishDefaults: { simulcast: true, videoCodec: 'vp8' },
-    }),
-    [choices],
-  );
-  const [showPanel, setShowPanel] = useState(join.isHost);
-
-  return (
-    <LiveKitRoom
-      serverUrl={join.serverUrl}
-      token={join.token}
-      connect
-      video={choices.videoEnabled}
-      audio={choices.audioEnabled && !join.muteOnEntry}
-      options={options}
-      onDisconnected={(reason) => onLeave(reasonText(reason))}
-      data-lk-theme="default"
-      className="room"
-    >
-      <RoomBar info={info} join={join} onTogglePanel={() => setShowPanel((s) => !s)} />
-      <div className="room-body">
-        <div className="room-stage">
-          <VideoConference />
-        </div>
-        {showPanel && <ParticipantsPanel code={info.code} isHost={join.isHost} />}
-      </div>
-      <RoomAudioRenderer />
-    </LiveKitRoom>
-  );
-}
-
-function useCountdown(endsAt: string | null) {
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    if (!endsAt) return;
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, [endsAt]);
-  if (!endsAt) return null;
-  return Math.max(0, Math.floor((new Date(endsAt).getTime() - now) / 1000));
-}
-
-function RoomBar({ info, join, onTogglePanel }: { info: MeetingInfo; join: JoinResult; onTogglePanel: () => void }) {
-  const [copied, setCopied] = useState(false);
+/** Connects to the LiveKit room, then drops you into the 3D venue. */
+function LiveVenue({ info, join, choices, color, profile, onLeave }: { info: MeetingInfo; join: JoinResult; choices: LocalUserChoices; color: string; profile: ProfileInput; onLeave: (reason: string) => void }) {
   const navigate = useNavigate();
-  const secondsLeft = useCountdown(join.planLimitEndsAt);
-  const participants = useParticipants();
+  const [room, setRoom] = useState<Room | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const leftRef = useRef(false);
 
-  const copyLink = async () => {
-    await navigator.clipboard.writeText(`${window.location.origin}/m/${info.code}`);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  };
+  useEffect(() => {
+    const r = new Room({
+      // We manage quality ourselves from distance in the 3D world.
+      adaptiveStream: false,
+      dynacast: true,
+      // Mix remote voices through our AudioContext so the venue can pan and fade them.
+      webAudioMix: { audioContext: venueAudioContext() },
+      videoCaptureDefaults: { deviceId: choices.videoDeviceId || undefined, resolution: VideoPresets.h540.resolution },
+      audioCaptureDefaults: { deviceId: choices.audioDeviceId || undefined, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      publishDefaults: { simulcast: true, videoCodec: 'vp8' },
+    });
+    let cancelled = false;
+    leftRef.current = false;
+    r.on(RoomEvent.Disconnected, (reason) => {
+      // Ignore rooms this effect already tore down, and leaves we started ourselves.
+      if (cancelled || leftRef.current) return;
+      leftRef.current = true;
+      onLeave(reasonText(reason));
+    });
+    (async () => {
+      try {
+        await r.connect(join.serverUrl, join.token);
+        if (cancelled) return;
+        setRoom(r);
+        // Turn devices on after connecting so a blocked camera never blocks joining.
+        await r.localParticipant.setCameraEnabled(choices.videoEnabled).catch(() => {});
+        await r.localParticipant.setMicrophoneEnabled(choices.audioEnabled && !join.muteOnEntry).catch(() => {});
+      } catch (e) {
+        if (!cancelled) setError(`Could not connect to the venue: ${(e as Error).message}`);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      void r.disconnect();
+    };
+    // Connect once per join.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [join]);
 
   const endForAll = async () => {
-    if (!confirm('End the meeting for everyone?')) return;
+    if (!confirm('End the event for everyone?')) return;
     await api(`/meetings/${info.code}/end`, { body: {} });
     navigate('/app');
   };
 
-  return (
-    <div className="room-bar">
-      <div className="row">
-        <strong>{info.title}</strong>
-        <span className="muted">{info.code}</span>
-        {secondsLeft !== null && (
-          <span className={secondsLeft < 300 ? 'timer-warning' : 'muted'} title="Free plan meeting limit">
-            {Math.floor(secondsLeft / 60)}:{String(secondsLeft % 60).padStart(2, '0')} left
-          </span>
-        )}
-      </div>
-      <div className="row">
-        <button className="btn btn-sm" onClick={copyLink}>{copied ? 'Link copied' : 'Copy invite link'}</button>
-        <button className="btn btn-sm" onClick={onTogglePanel}>People ({participants.length})</button>
-        {join.isHost && <button className="btn btn-sm" style={{ color: '#f87171' }} onClick={endForAll}>End for all</button>}
-      </div>
-    </div>
-  );
-}
-
-function ParticipantsPanel({ code, isHost }: { code: string; isHost: boolean }) {
-  const participants = useParticipants();
-  const [pending, setPending] = useState<Array<{ id: string; displayName: string }>>([]);
-  const [error, setError] = useState<string | null>(null);
-
-  const loadPending = useCallback(async () => {
-    if (!isHost) return;
-    try {
-      setPending((await api<{ pending: typeof pending }>(`/meetings/${code}/admissions`)).pending);
-    } catch {
-      /* transient; next poll retries */
-    }
-  }, [code, isHost]);
-
-  useEffect(() => {
-    void loadPending();
-    if (!isHost) return;
-    const t = setInterval(loadPending, 3000);
-    return () => clearInterval(t);
-  }, [loadPending, isHost]);
-
-  const act = async (path: string, body: unknown = {}) => {
-    setError(null);
-    try {
-      await api(path, { body });
-      await loadPending();
-    } catch (e) {
-      setError((e as Error).message);
-    }
-  };
-
-  return (
-    <aside className="host-panel" aria-label="Participants">
-      {error && <div className="error">{error}</div>}
-      {isHost && pending.length > 0 && (
-        <>
-          <h3>Waiting room ({pending.length})</h3>
-          {pending.map((p) => (
-            <div className="person" key={p.id}>
-              <span>{p.displayName}</span>
-              <span className="row" style={{ gap: '0.3rem' }}>
-                <button className="btn btn-sm" onClick={() => act(`/meetings/${code}/admissions/${p.id}`, { admit: true })}>Admit</button>
-                <button className="btn btn-sm" onClick={() => act(`/meetings/${code}/admissions/${p.id}`, { admit: false })}>Deny</button>
-              </span>
-            </div>
-          ))}
-        </>
-      )}
-      <h3>In the meeting ({participants.length})</h3>
-      {participants.map((p) => (
-        <div className="person" key={p.identity}>
-          <span>
-            {p.name || p.identity}
-            {p.isLocal && ' (you)'}
-            {!p.isMicrophoneEnabled && <span className="muted"> · muted</span>}
-          </span>
-          {isHost && !p.isLocal && (
-            <span className="row" style={{ gap: '0.3rem' }}>
-              {p.isMicrophoneEnabled && <button className="btn btn-sm" onClick={() => act(`/meetings/${code}/participants/${encodeURIComponent(p.identity)}/mute`)}>Mute</button>}
-              <button className="btn btn-sm" onClick={() => confirm(`Remove ${p.name || 'this person'}?`) && act(`/meetings/${code}/participants/${encodeURIComponent(p.identity)}/remove`)}>Remove</button>
-            </span>
-          )}
+  if (error) {
+    return (
+      <div className="prejoin">
+        <div className="card prejoin-card stack">
+          <div className="error">{error}</div>
+          <button className="btn" onClick={() => onLeave('Connection failed.')}>Back</button>
         </div>
-      ))}
-    </aside>
+      </div>
+    );
+  }
+  if (!room) return <div className="world-loading">Warming up the venue…</div>;
+
+  return (
+    <WorldView
+      mode="live"
+      room={room}
+      name={choices.username || room.localParticipant.name || 'Guest'}
+      color={color}
+      profile={profile}
+      title={info.title}
+      code={info.code}
+      isHost={join.isHost}
+      planLimitEndsAt={join.planLimitEndsAt}
+      onLeave={() => {
+        leftRef.current = true;
+        onLeave('You left the venue.');
+      }}
+      onEndForAll={join.isHost ? endForAll : undefined}
+    />
   );
 }
+
