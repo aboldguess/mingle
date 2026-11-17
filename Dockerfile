@@ -11,6 +11,10 @@ RUN npm run build && npm prune --omit=dev
 
 FROM node:22-alpine AS runtime
 ENV NODE_ENV=production
+# LibreOffice turns uploaded PowerPoint decks into PDFs for the big screen.
+# Build with --build-arg WITH_OFFICE=0 for a much smaller image (PDF uploads still work).
+ARG WITH_OFFICE=1
+RUN if [ "$WITH_OFFICE" = "1" ]; then apk add --no-cache libreoffice-impress font-liberation ttf-dejavu; fi
 WORKDIR /app
 COPY --from=build /app/package.json ./
 COPY --from=build /app/node_modules node_modules

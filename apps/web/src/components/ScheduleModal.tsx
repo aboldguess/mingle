@@ -17,6 +17,7 @@ export function ScheduleModal({ orgId, onClose, onCreated }: { orgId: string; on
     allowGuests: true,
     waitingRoom: false,
     muteOnEntry: false,
+    presenters: '',
   });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -34,6 +35,7 @@ export function ScheduleModal({ orgId, onClose, onCreated }: { orgId: string; on
           allowGuests: form.allowGuests,
           waitingRoom: form.waitingRoom,
           muteOnEntry: form.muteOnEntry,
+          presenterEmails: form.presenters.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean),
         },
       });
       onCreated(meeting);
@@ -60,6 +62,11 @@ export function ScheduleModal({ orgId, onClose, onCreated }: { orgId: string; on
           </label>
         </div>
         <label>Description<textarea rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></label>
+        <label>
+          Presenters <span className="muted small">(optional: emails, comma separated)</span>
+          <input value={form.presenters} onChange={(e) => setForm({ ...form, presenters: e.target.value })} placeholder="speaker@example.com, panelist@example.com" />
+          <span className="small muted">When set, the stage is roped off: only these people (signed in with that email) and hosts can go up to the podium.</span>
+        </label>
         <label className="check"><input type="checkbox" checked={form.allowGuests} onChange={(e) => setForm({ ...form, allowGuests: e.target.checked })} />Allow guests without an account</label>
         <label className="check"><input type="checkbox" checked={form.waitingRoom} onChange={(e) => setForm({ ...form, waitingRoom: e.target.checked })} />Queue at the door for people outside the team</label>
         <label className="check"><input type="checkbox" checked={form.muteOnEntry} onChange={(e) => setForm({ ...form, muteOnEntry: e.target.checked })} />Mute people when they arrive</label>

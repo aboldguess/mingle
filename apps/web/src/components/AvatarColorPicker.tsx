@@ -1,4 +1,4 @@
-import { AVATAR_COLORS, type AvatarLook, cleanLook, DEFAULT_LOOK, PROPS } from '../world/avatar';
+import { AVATAR_COLORS, type AvatarLook, CASINGS, cleanLook, DEFAULT_LOOK, PROPS } from '../world/avatar';
 
 const KEY = 'mingle.avatarColor';
 
@@ -70,16 +70,12 @@ function persist(p: ProfileInput) {
   }
 }
 
-/**
- * Your name tag ("Ask me about…" and "Here to…"), your business card, and how
- * your avatar looks.
- */
+/** Your name tag ("Ask me about…" and "Here to…") and your business card. */
 export function ProfileFields({ value, onChange }: { value: ProfileInput; onChange: (p: ProfileInput) => void }) {
   const set = (p: ProfileInput) => {
     onChange(p);
     persist(p);
   };
-  const setLook = (look: Partial<AvatarLook>) => set({ ...value, look: { ...value.look, ...look } });
   return (
     <>
       <div className="row" style={{ alignItems: 'flex-start' }}>
@@ -96,34 +92,51 @@ export function ProfileFields({ value, onChange }: { value: ProfileInput; onChan
         Business card <span className="muted small">(optional)</span>
         <input value={value.contact} maxLength={120} placeholder="Email or LinkedIn URL" onChange={(e) => set({ ...value, contact: e.target.value })} />
       </label>
-      <details className="avatar-details">
-        <summary className="small">Customise your avatar</summary>
-        <div className="avatar-style" style={{ marginTop: '0.5rem' }}>
-          <label className="small">
-            Height
-            <input type="range" min={0.9} max={1.1} step={0.02} value={value.look.height} onChange={(e) => setLook({ height: Number(e.target.value) })} />
-          </label>
-          <label className="small">
-            Build
-            <input type="range" min={0.8} max={1.2} step={0.02} value={value.look.build} onChange={(e) => setLook({ build: Number(e.target.value) })} />
-          </label>
-          <label className="small">
-            Telly
-            <select value={value.look.tv} onChange={(e) => setLook({ tv: e.target.value as AvatarLook['tv'] })}>
-              <option value="crt">Retro CRT</option>
-              <option value="flat">Slim flat screen</option>
-            </select>
-          </label>
-          <label className="small">
-            Conversation starter
-            <select value={value.look.prop} onChange={(e) => setLook({ prop: e.target.value as AvatarLook['prop'] })}>
-              {PROPS.map((p) => (
-                <option key={p.id} value={p.id}>{p.label}</option>
-              ))}
-            </select>
-          </label>
-        </div>
-      </details>
     </>
+  );
+}
+
+/** Save a profile change (the pre-join screen calls this as you tweak your look). */
+export function saveProfile(p: ProfileInput) {
+  persist(p);
+}
+
+/** How your avatar looks: body, telly and a conversation-starter prop. */
+export function LookFields({ value, onChange }: { value: AvatarLook; onChange: (look: AvatarLook) => void }) {
+  const setLook = (look: Partial<AvatarLook>) => onChange({ ...value, ...look });
+  return (
+    <div className="avatar-style">
+      <label className="small">
+        Height
+        <input type="range" min={0.9} max={1.1} step={0.02} value={value.height} onChange={(e) => setLook({ height: Number(e.target.value) })} />
+      </label>
+      <label className="small">
+        Build
+        <input type="range" min={0.8} max={1.2} step={0.02} value={value.build} onChange={(e) => setLook({ build: Number(e.target.value) })} />
+      </label>
+      <label className="small">
+        Telly
+        <select value={value.tv} onChange={(e) => setLook({ tv: e.target.value as AvatarLook['tv'] })}>
+          <option value="crt">Retro CRT</option>
+          <option value="flat">Slim flat screen</option>
+        </select>
+      </label>
+      <label className="small">
+        Casing
+        <select value={value.casing} onChange={(e) => setLook({ casing: e.target.value as AvatarLook['casing'] })}>
+          {CASINGS.map((c) => (
+            <option key={c.id} value={c.id}>{c.label}</option>
+          ))}
+        </select>
+      </label>
+      <label className="small" style={{ gridColumn: '1 / -1' }}>
+        Conversation starter
+        <select value={value.prop} onChange={(e) => setLook({ prop: e.target.value as AvatarLook['prop'] })}>
+          {PROPS.map((p) => (
+            <option key={p.id} value={p.id}>{p.label}</option>
+          ))}
+        </select>
+      </label>
+    </div>
   );
 }

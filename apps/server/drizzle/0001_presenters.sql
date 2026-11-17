@@ -1,0 +1,1 @@
+ALTER TABLE "meetings" ADD COLUMN "presenter_emails" text[] DEFAULT '{}'::text[] NOT NULL;

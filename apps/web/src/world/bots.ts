@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { AVATAR_COLORS, type AvatarLook, GESTURES, PROPS } from './avatar';
+import { AVATAR_COLORS, type AvatarLook, CASINGS, DEFAULT_CAM, GESTURES, PROPS } from './avatar';
 import type { World } from './engine';
 import { blocked, PRESENTER_SPOT, STAGE } from './venue';
 
@@ -74,6 +74,8 @@ export class BotCrowd {
         height: 0.92 + Math.random() * 0.16,
         build: 0.85 + Math.random() * 0.3,
         tv: Math.random() > 0.7 ? 'flat' : 'crt',
+        casing: CASINGS[Math.floor(Math.random() * CASINGS.length)]!.id,
+        cam: DEFAULT_CAM,
         prop: Math.random() > 0.5 ? PROPS[1 + Math.floor(Math.random() * (PROPS.length - 1))]!.id : 'none',
       };
       avatar.setLook(look);

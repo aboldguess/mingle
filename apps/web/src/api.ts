@@ -45,6 +45,7 @@ export interface Meeting {
   allowGuests: boolean;
   waitingRoom: boolean;
   muteOnEntry: boolean;
+  presenterEmails?: string[];
   joinUrl: string;
 }
 
@@ -82,6 +83,10 @@ export interface JoinResult {
   isHost: boolean;
   identity: string;
   muteOnEntry: boolean;
+  /** Pre-agreed presenter (or host): allowed past the stage rope. */
+  isPresenter?: boolean;
+  /** The stage starts roped off for everyone but presenters. */
+  stageRestricted?: boolean;
   planLimitEndsAt: string | null;
 }
 

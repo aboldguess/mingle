@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { and, asc, desc, eq, gte, inArray, isNull, lt, or } from 'drizzle-orm';
-import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
+import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { Db } from '../db/client.js';
 import { admissionRequests, meetings, memberships, organizations, users, type Meeting, type Organization, type User } from '../db/schema.js';
@@ -9,6 +9,7 @@ import { requireOrgRole, requireUser, roleAtLeast } from '../lib/auth.js';
 import { newMeetingCode } from '../lib/crypto.js';
 import { badRequest, forbidden, HttpError, notFound, paymentRequired, unauthorized } from '../lib/errors.js';
 import { effectivePlan, PLANS } from '../plans.js';
+import { convertDeckToPdf, MAX_DECK_BYTES, PPTX_TYPE } from '../services/convert.js';
 import { roomNameFor, type MediaService } from '../services/livekit.js';
 
 const meetingInput = z.object({
@@ -19,6 +20,8 @@ const meetingInput = z.object({
   allowGuests: z.boolean().default(true),
   waitingRoom: z.boolean().default(false),
   muteOnEntry: z.boolean().default(false),
+  /** Pre-agreed presenters' emails. Optional so a PATCH that leaves it out keeps the list. */
+  presenterEmails: z.array(z.string().trim().toLowerCase().email()).max(50).optional(),
 });
 
 const joinBody = z.object({ displayName: z.string().trim().min(1).max(80).optional() });
@@ -39,6 +42,7 @@ export function serializeMeeting(m: Meeting, appUrl: string) {
     allowGuests: m.allowGuests,
     waitingRoom: m.waitingRoom,
     muteOnEntry: m.muteOnEntry,
+    presenterEmails: m.presenterEmails,
     startedAt: m.startedAt,
     endedAt: m.endedAt,
     joinUrl: `${appUrl}/m/${m.code}`,
@@ -88,7 +92,7 @@ export function minutesRemaining(meeting: Meeting, org: Organization, now = new 
 async function issueJoin(
   deps: { db: Db; media: MediaService },
   access: MeetingAccess,
-  who: { identity: string; name: string; isHost: boolean },
+  who: { identity: string; name: string; isHost: boolean; email?: string | null },
 ) {
   const { meeting, org } = access;
   const plan = PLANS[effectivePlan(org)];
@@ -103,12 +107,13 @@ async function issueJoin(
     startedAt = new Date();
     await deps.db.update(meetings).set({ status: 'live', startedAt, endedAt: null }).where(eq(meetings.id, meeting.id));
   }
+  const isPresenter = who.isHost || Boolean(who.email && meeting.presenterEmails.includes(who.email.toLowerCase()));
   const token = await deps.media.createJoinToken({
     roomName,
     identity: who.identity,
     name: who.name,
     isHost: who.isHost,
-    metadata: { meetingCode: meeting.code },
+    metadata: { meetingCode: meeting.code, isPresenter },
   });
   const endsAt = new Date(startedAt.getTime() + plan.maxMeetingMinutes * 60000);
   return {
@@ -118,6 +123,9 @@ async function issueJoin(
     isHost: who.isHost,
     identity: who.identity,
     muteOnEntry: meeting.muteOnEntry && !who.isHost,
+    isPresenter,
+    /** The stage starts roped off when the host pre-agreed who presents. */
+    stageRestricted: meeting.presenterEmails.length > 0,
     planLimitEndsAt: plan.maxMeetingMinutes < 24 * 60 ? endsAt : null,
   };
 }
@@ -160,7 +168,7 @@ export const meetingRoutes: FastifyPluginAsync = async (app) => {
     for (let attempt = 0; attempt < 5 && !meeting; attempt++) {
       [meeting] = await db
         .insert(meetings)
-        .values({ ...body, orgId: org.id, hostId: user.id, code: newMeetingCode() })
+        .values({ ...body, presenterEmails: body.presenterEmails ?? [], orgId: org.id, hostId: user.id, code: newMeetingCode() })
         .onConflictDoNothing()
         .returning();
     }
@@ -240,7 +248,7 @@ export const meetingRoutes: FastifyPluginAsync = async (app) => {
       }
 
       const identity = user ? `u_${user.id}` : `g_${randomBytes(8).toString('hex')}`;
-      const result = await issueJoin({ db, media }, access, { identity, name, isHost: access.isHost });
+      const result = await issueJoin({ db, media }, access, { identity, name, isHost: access.isHost, email: user?.email });
       await audit(db, req, { orgId: org.id, actorId: user?.id, action: 'meeting.joined', target: meeting.code, metadata: { identity, guest: !user } });
       return result;
     },
@@ -266,7 +274,8 @@ export const meetingRoutes: FastifyPluginAsync = async (app) => {
       .returning();
     if (!claimed.length) throw badRequest('This admission was already used', 'consumed');
     const identity = request.userId ? `u_${request.userId}` : `g_${randomBytes(8).toString('hex')}`;
-    return issueJoin({ db, media }, access, { identity, name: request.displayName, isHost: false });
+    const [waiting] = request.userId ? await db.select({ email: users.email }).from(users).where(eq(users.id, request.userId)) : [];
+    return issueJoin({ db, media }, access, { identity, name: request.displayName, isHost: false, email: waiting?.email });
   });
 
   app.get<{ Params: { code: string } }>('/meetings/:code/admissions', async (req) => {
@@ -314,6 +323,47 @@ export const meetingRoutes: FastifyPluginAsync = async (app) => {
 
   app.post('/meetings/:code/participants/:identity/remove', hostAction('remove'));
   app.post('/meetings/:code/participants/:identity/mute', hostAction('mute'));
+
+  // Host: mute a batch of people at once, e.g. everyone in the auditorium.
+  app.post<{ Params: { code: string } }>('/meetings/:code/mute-many', async (req) => {
+    const user = requireUser(req);
+    const access = await loadMeeting(db, req.params.code, user);
+    requireHost(access);
+    const body = z.object({ identities: z.array(z.string().min(1).max(100)).max(1000) }).parse(req.body ?? {});
+    const room = roomNameFor(access.meeting.code);
+    const results = await Promise.allSettled(body.identities.map((id) => media.muteParticipant(room, id)));
+    const muted = results.filter((r) => r.status === 'fulfilled').length;
+    await audit(db, req, { orgId: access.org.id, actorId: user.id, action: 'meeting.audience_muted', target: access.meeting.code, metadata: { count: muted } });
+    return { ok: true, muted };
+  });
+
+  // Turn a PowerPoint deck into a PDF so it can go on the big screen.
+  // Conversion is CPU heavy, so it is rate limited, size capped, and needs
+  // either a live event (presenters may be guests) or a signed-in user (the
+  // solo demo, rehearsing before an event).
+  await app.register(async (scoped) => {
+    scoped.addContentTypeParser(
+      [PPTX_TYPE, 'application/vnd.ms-powerpoint', 'application/octet-stream'],
+      { parseAs: 'buffer', bodyLimit: MAX_DECK_BYTES },
+      (_req, body, done) => done(null, body),
+    );
+    const opts = { config: { rateLimit: { max: 6, timeWindow: '10 minutes' } }, bodyLimit: MAX_DECK_BYTES };
+    const convert = async (req: FastifyRequest, reply: FastifyReply, orgId: string | null, target: string) => {
+      if (!Buffer.isBuffer(req.body) || req.body.length === 0) throw badRequest('Upload a .pptx file', 'no_file');
+      const pdf = await convertDeckToPdf(req.body, config.SOFFICE_PATH);
+      if (orgId) await audit(db, req, { orgId, actorId: req.user?.id, action: 'meeting.slides_converted', target, metadata: { bytes: req.body.length } });
+      return reply.type('application/pdf').send(pdf);
+    };
+    scoped.post<{ Params: { code: string } }>('/meetings/:code/slides/convert', opts, async (req, reply) => {
+      const access = await loadMeeting(db, req.params.code, req.user);
+      if (access.meeting.status !== 'live' && !access.isHost) throw badRequest('Slides can be converted once the event is live', 'not_live');
+      return convert(req, reply, access.org.id, access.meeting.code);
+    });
+    scoped.post('/slides/convert', opts, async (req, reply) => {
+      requireUser(req);
+      return convert(req, reply, null, '');
+    });
+  });
 
   app.post<{ Params: { code: string } }>('/meetings/:code/end', async (req) => {
     const user = requireUser(req);

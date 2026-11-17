@@ -142,3 +142,44 @@ kbd { display: inline-block; min-width: 1.5em; text-align: center; background: #
   .world-panel { top: 200px; }
 }
 .board-tools select { width: auto; flex: 0 0 auto; }
+
+/* Slides on the big screen: the presenter's controls. */
+.slide-bar { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 12px; background: var(--hud-bg); border: 1px solid var(--hud-border); color: var(--hud-text); backdrop-filter: blur(6px); z-index: 6; max-width: calc(100vw - 32px); }
+.slide-thumb { width: 96px; height: 54px; border-radius: 4px; background: #111317; flex-shrink: 0; }
+.slide-info { display: flex; flex-direction: column; min-width: 0; max-width: 220px; }
+.slide-info strong { font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slide-info .small { opacity: 0.8; }
+
+/* Host tools: stage rope and hushing the audience. */
+.host-tools label.toggle { display: flex; align-items: center; justify-content: space-between; gap: 8px; cursor: pointer; font-weight: 500; margin: 0; }
+.host-tools label.toggle input { width: auto; flex: 0 0 auto; margin: 0; }
+.badge-presenter { margin-left: 6px; padding: 0 6px; border-radius: 999px; font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; background: #8e2a35; color: #fff; vertical-align: middle; }
+.btn-on { border-color: #4f9d69; background: rgba(79, 157, 105, 0.15); }
+
+.selfview-zoom { width: 100%; height: 100%; }
+
+/* Pre-join dressing room. */
+.prejoin-wide { max-width: 980px; }
+.studio { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.25rem; align-items: start; }
+@media (max-width: 760px) { .studio { grid-template-columns: 1fr; } }
+.studio-preview { display: flex; flex-direction: column; gap: 0.6rem; min-width: 0; }
+.studio-form { min-width: 0; }
+.avatar-preview { height: 300px; border-radius: 12px; background: radial-gradient(ellipse at 50% 30%, #4a5262, #232831); cursor: grab; overflow: hidden; touch-action: none; }
+.avatar-preview:active { cursor: grabbing; }
+.avatar-preview canvas { width: 100%; height: 100%; display: block; }
+.avatar-preview[data-no-webgl='true']::after { content: 'Your browser can’t show the 3D preview'; display: grid; place-items: center; height: 100%; color: #ddd; font-size: 0.85rem; }
+.studio-devices { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
+.studio-devices select { width: auto; flex: 1 1 140px; font-size: 0.85rem; padding: 0.35em 0.5em; }
+.mic-meter { display: inline-block; width: 40px; height: 6px; margin-left: 6px; border-radius: 3px; background: rgba(127,127,127,0.3); vertical-align: middle; overflow: hidden; }
+.mic-meter span { display: block; height: 100%; background: #4f9d69; transition: width 60ms linear; }
+.cam-framer { display: flex; flex-direction: column; gap: 0.4rem; }
+.cam-framer-view { position: relative; width: 100%; border-radius: 10px; overflow: hidden; background: #1c1f26; user-select: none; }
+.cam-framer-view video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; transform: scaleX(-1); }
+.cam-framer-off { position: absolute; inset: 0; display: grid; place-items: center; color: #aaa; font-size: 0.85rem; }
+.cam-framer-crop { position: absolute; border: 2px solid #f1e3c8; border-radius: 6px; box-shadow: 0 0 0 9999px rgba(10, 12, 16, 0.55); cursor: move; touch-action: none; }
+.cam-framer-crop:focus-visible { outline: 2px solid #9cc7e3; outline-offset: 2px; }
+.cam-framer-oval { position: absolute; left: 22%; right: 22%; top: 8%; bottom: 8%; border: 2px dashed rgba(241, 227, 200, 0.75); border-radius: 50%; pointer-events: none; }
+.cam-framer-tools { align-items: flex-end; flex-wrap: nowrap; }
+.studio-tabs { display: flex; gap: 0.25rem; border-bottom: 1px solid var(--border); }
+.studio-tabs button { background: none; border: 0; border-bottom: 2px solid transparent; padding: 0.4rem 0.6rem; font: inherit; font-weight: 600; color: var(--muted); cursor: pointer; }
+.studio-tabs button.on { color: var(--text); border-bottom-color: var(--text); }

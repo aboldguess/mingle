@@ -47,6 +47,8 @@ export interface Venue {
   groupTables: THREE.Vector2[];
   /** Host branding: event name on the back wall, sponsor line on the side banner. */
   setBranding(b: Branding | null): void;
+  /** Show or hide the velvet rope that keeps the audience back from the stage. */
+  setStageRope(up: boolean): void;
 }
 
 export interface Branding {
@@ -61,7 +63,15 @@ export const BOARD_H = 576;
 export const LOBBY = { minX: -20, maxX: 20, minZ: 0, maxZ: 30 };
 export const AUDITORIUM = { minX: -18, maxX: 18, minZ: -34, maxZ: 0 };
 export const STAGE = { minX: -13, maxX: 13, minZ: -34, maxZ: -25, top: 1.1 };
-export const PRESENTER_SPOT = new THREE.Vector2(0, -28.5);
+/** The lectern, stage left of the big screen so it never hides the slides. */
+export const PODIUM = { minX: 5, maxX: 6.2, minZ: -28.2, maxZ: -27.4 };
+/** Where a presenter stands: right behind the podium, facing the audience. */
+export const PRESENTER_SPOT = new THREE.Vector2((PODIUM.minX + PODIUM.maxX) / 2, PODIUM.minZ - 0.75);
+/**
+ * The area in front of and on the stage. When the host restricts the stage,
+ * only presenters may walk in here; a velvet rope marks the edge.
+ */
+export const STAGE_APRON = { minX: -18, maxX: 18, minZ: -34, maxZ: -22.6 };
 const DOOR_HALF = 4;
 const WALL = 0.5;
 
@@ -155,20 +165,57 @@ export function buildVenue(): Venue {
   for (const cx of [-9, 0, 9]) {
     addBox({ minX: cx - 2, maxX: cx + 2, minZ: STAGE.maxZ, maxZ: STAGE.maxZ + 0.8, top: 0.55 }, stepMat);
   }
-  // Presenter spot: a glowing ring on the stage.
-  const spot = new THREE.Mesh(new THREE.RingGeometry(0.9, 1.15, 40), new THREE.MeshBasicMaterial({ color: '#e8dcc0', side: THREE.DoubleSide, transparent: true, opacity: 0.8 }));
+  // The podium: a lectern with a sloped reading desk and a mic, and the
+  // presenter's spot (a glowing ring) right behind it.
+  const podiumMat = toon('#2b2d42');
+  addBox({ ...PODIUM, top: STAGE.top + 1.05 }, podiumMat, { bottom: STAGE.top });
+  const desk = new THREE.Mesh(new THREE.BoxGeometry(PODIUM.maxX - PODIUM.minX + 0.16, 0.06, 0.62), toon('#c9b28a'));
+  desk.position.set(PRESENTER_SPOT.x, STAGE.top + 1.12, (PODIUM.minZ + PODIUM.maxZ) / 2);
+  desk.rotation.x = 0.28; // slopes down towards the speaker
+  group.add(desk);
+  const podiumFront = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.34), new THREE.MeshBasicMaterial({ map: plaque('SPEAKER', '#e8dcc0', 512, 192, '700 92px system-ui, sans-serif'), transparent: true }));
+  podiumFront.position.set(PRESENTER_SPOT.x, STAGE.top + 0.78, PODIUM.maxZ + 0.01);
+  group.add(podiumFront);
+  const micStem = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.42, 6), toon('#555a63'));
+  micStem.position.set(PRESENTER_SPOT.x + 0.3, STAGE.top + 1.3, PODIUM.minZ + 0.12);
+  micStem.rotation.x = -0.5;
+  const micHead = new THREE.Mesh(new THREE.SphereGeometry(0.045, 10, 8), toon('#2a2a2a'));
+  micHead.position.set(PRESENTER_SPOT.x + 0.3, STAGE.top + 1.48, PODIUM.minZ - 0.0);
+  group.add(micStem, micHead);
+  const spot = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.66, 40), new THREE.MeshBasicMaterial({ color: '#e8dcc0', side: THREE.DoubleSide, transparent: true, opacity: 0.85 }));
   spot.rotation.x = -Math.PI / 2;
   spot.position.set(PRESENTER_SPOT.x, STAGE.top + 0.01, PRESENTER_SPOT.y);
+  spot.name = 'presenterSpot';
   group.add(spot);
   const spotLabel = new THREE.Mesh(
     new THREE.PlaneGeometry(2.4, 0.6),
     new THREE.MeshBasicMaterial({ map: plaque('STAND HERE TO PRESENT', '#e8dcc0', 1024, 256, '600 72px system-ui, sans-serif'), transparent: true }),
   );
   spotLabel.rotation.x = -Math.PI / 2;
-  spotLabel.position.set(PRESENTER_SPOT.x, STAGE.top + 0.02, PRESENTER_SPOT.y + 1.6);
+  spotLabel.position.set(PRESENTER_SPOT.x, STAGE.top + 0.02, PRESENTER_SPOT.y - 1.05);
   group.add(spotLabel);
-  // Lectern off to one side so it does not hide the presenter.
-  addBox({ minX: 5, maxX: 6.2, minZ: -28.2, maxZ: -27.4, top: STAGE.top + 1.15 }, toon('#2b2d42'), { bottom: STAGE.top });
+
+  // Velvet rope across the front of the hall, shown when the stage is restricted.
+  const rope = new THREE.Group();
+  rope.name = 'stageRope';
+  rope.visible = false;
+  const postMat = toon('#c9a24a');
+  const ropeMat = toon('#8e2a35');
+  const ropeZ = STAGE_APRON.maxZ + 0.1;
+  for (let x = STAGE_APRON.minX + 0.4; x <= STAGE_APRON.maxX - 0.3; x += 2.4) {
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1, 8), postMat);
+    post.position.set(x, 0.5, ropeZ);
+    const knob = new THREE.Mesh(new THREE.SphereGeometry(0.08, 10, 8), postMat);
+    knob.position.set(x, 1.02, ropeZ);
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.22, 0.05, 14), postMat);
+    base.position.set(x, 0.025, ropeZ);
+    rope.add(post, knob, base);
+    if (x + 2.4 <= STAGE_APRON.maxX - 0.3) {
+      const curve = new THREE.QuadraticBezierCurve3(new THREE.Vector3(x, 0.92, ropeZ), new THREE.Vector3(x + 1.2, 0.62, ropeZ), new THREE.Vector3(x + 2.4, 0.92, ropeZ));
+      rope.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 12, 0.03, 6), ropeMat));
+    }
+  }
+  group.add(rope);
 
   // ---------- Big screen ----------
   const screenW = 19;
@@ -364,7 +411,7 @@ export function buildVenue(): Venue {
   group.add(sun);
   const stageLight = new THREE.SpotLight('#fff1d6', 120, 30, Math.PI / 6, 0.5, 1.2);
   stageLight.position.set(0, 12, -18);
-  stageLight.target.position.set(0, 1, -28.5);
+  stageLight.target.position.set(PRESENTER_SPOT.x * 0.5, 1, PRESENTER_SPOT.y);
   group.add(stageLight, stageLight.target);
   const barGlow = new THREE.PointLight('#ffe2b8', 12, 12);
   barGlow.position.set(17, 3, 15);
@@ -402,6 +449,7 @@ export function buildVenue(): Venue {
     boards,
     groupTables,
     setBranding,
+    setStageRope: (up) => (rope.visible = up),
     screen,
     screenIdle,
     zoneAt: (x, z, feetY) => zoneAt(x, z, feetY),
@@ -427,7 +475,7 @@ function idleScreenTexture(): THREE.CanvasTexture {
     ctx.fillText('Where Zoom Meets Doom', w / 2, h * 0.58);
     ctx.font = '500 36px system-ui, sans-serif';
     ctx.fillStyle = 'rgba(255,255,255,0.8)';
-    ctx.fillText('Step into the glowing ring on stage to present', w / 2, h * 0.78);
+    ctx.fillText('Step up to the podium to present', w / 2, h * 0.78);
   });
 }
 

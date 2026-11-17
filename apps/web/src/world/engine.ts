@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Avatar } from './avatar';
-import { AUDITORIUM, blocked, buildVenue, groundAt, LOBBY, PODS, STAGE, type Venue, type Zone } from './venue';
+import { AUDITORIUM, blocked, type Box, buildVenue, groundAt, LOBBY, PODS, STAGE, STAGE_APRON, type Venue, type Zone } from './venue';
 
 /** What every client broadcasts about itself several times a second. */
 export interface PlayerState {
@@ -92,6 +92,9 @@ export class World {
   private resizeObserver: ResizeObserver;
   readonly mode: WorldMode;
   private frameHooks = new Set<(dt: number) => void>();
+  /** What the local player collides with: the venue, plus the stage rope when it's up for us. */
+  private solid: Box[] = [];
+  private stageBarred = false;
   inputEnabled = true;
   thirdPerson = false;
   mouseSensitivity = 0.0022;
@@ -115,6 +118,7 @@ export class World {
     this.scene.fog = new THREE.Fog('#3a4150', 45, 110);
     this.venue = buildVenue();
     this.scene.add(this.venue.group);
+    this.solid = this.venue.boxes;
 
     const spawn = this.venue.spawnPoint();
     this.pos.set(spawn.x, 0, spawn.z);
@@ -302,6 +306,7 @@ export class World {
       r.hasState = true;
       r.pos.set(s.x, s.y, s.z);
       r.yaw = s.yaw;
+      r.avatar.resetFacing(s.yaw);
       r.avatar.root.visible = true;
     }
   }
@@ -483,7 +488,7 @@ export class World {
     this.vel.x += (mx - this.vel.x) * Math.min(1, accel * dt);
     this.vel.z += (mz - this.vel.z) * Math.min(1, accel * dt);
 
-    const boxes = this.venue.boxes;
+    const boxes = this.solid;
     const nx = this.pos.x + this.vel.x * dt;
     if (!blocked(boxes, nx, this.pos.z, this.pos.y, RADIUS, STEP_UP)) this.pos.x = nx;
     else this.vel.x = 0;
@@ -535,8 +540,7 @@ export class World {
     const a = this.localAvatar;
     a.root.visible = this.thirdPerson;
     a.root.position.copy(this.pos);
-    a.root.rotation.y = this.yaw;
-    a.update(dt, Math.hypot(this.vel.x, this.vel.z), this.pitch);
+    a.update(dt, Math.hypot(this.vel.x, this.vel.z), this.pitch, this.yaw);
 
     const zone = this.venue.zoneAt(this.pos.x, this.pos.z, this.pos.y);
     if (zone !== this.zone) {
@@ -560,13 +564,41 @@ export class World {
 
   /** Jump somewhere instantly (minimap click, "go to" a person, the host's call). */
   teleport(x: number, z: number, yaw?: number) {
-    const y = groundAt(this.venue.boxes, x, z, 5, RADIUS, STEP_UP);
-    if (blocked(this.venue.boxes, x, z, y, RADIUS, STEP_UP)) return false;
+    const y = groundAt(this.solid, x, z, 5, RADIUS, STEP_UP);
+    if (blocked(this.solid, x, z, y, RADIUS, STEP_UP)) return false;
     this.pos.set(x, y, z);
     this.vel.set(0, 0, 0);
     if (yaw !== undefined) this.yaw = yaw;
     this.forceSendState();
     return true;
+  }
+
+  /**
+   * Keep the local player off the stage (and out of the area just in front of
+   * it) unless they are allowed to present. The rope is shown to everyone
+   * whenever the stage is restricted; only people who may not pass collide with it.
+   */
+  setStageAccess(restricted: boolean, allowed: boolean) {
+    this.venue.setStageRope(restricted);
+    const barred = restricted && !allowed;
+    if (barred === this.stageBarred) return;
+    this.stageBarred = barred;
+    this.solid = barred ? [...this.venue.boxes, { ...STAGE_APRON, top: 100 }] : this.venue.boxes;
+    if (barred && this.inApron(this.pos.x, this.pos.z)) {
+      // Step back behind the rope.
+      for (let i = 0; i < 20; i++) {
+        const x = THREE.MathUtils.clamp(this.pos.x + (Math.random() - 0.5) * i * 0.6, -14, 14);
+        if (this.teleport(x, STAGE_APRON.maxZ + 1.2 + Math.random() * 0.5 + i * 0.1, Math.PI)) break;
+      }
+    }
+  }
+
+  get stageRestrictedForMe() {
+    return this.stageBarred;
+  }
+
+  private inApron(x: number, z: number) {
+    return x > STAGE_APRON.minX - RADIUS && x < STAGE_APRON.maxX + RADIUS && z > STAGE_APRON.minZ - RADIUS && z < STAGE_APRON.maxZ + RADIUS;
   }
 
   /** Teleport to stand just in front of someone, facing them. */
@@ -642,8 +674,7 @@ export class World {
       const moved = Math.hypot(r.pos.x - before.x, r.pos.z - before.z) / Math.max(dt, 1e-3);
       r.speed += (moved - r.speed) * Math.min(1, dt * 8);
       r.avatar.root.position.copy(r.pos);
-      r.avatar.root.rotation.y = r.yaw;
-      r.avatar.update(dt, r.speed, r.pitch);
+      r.avatar.update(dt, r.speed, r.pitch, r.yaw);
       r.avatar.setViewDistance(r.avatar.root.position.distanceTo(this.camera.position));
     }
   }

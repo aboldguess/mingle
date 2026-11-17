@@ -18,6 +18,8 @@ export interface PersonRow {
   mic?: boolean;
   muted?: boolean;
   where?: string;
+  /** Allowed past the stage rope. */
+  presenter?: boolean;
 }
 
 /**
@@ -40,6 +42,11 @@ export function PeoplePanel(props: {
   onVisitTable?: (table: number) => void;
   branding?: Branding | null;
   onBranding?: (b: Branding) => void;
+  stageLocked?: boolean;
+  onStageLocked?: (locked: boolean) => void;
+  onPresenter?: (id: string, on: boolean) => void;
+  hushed?: boolean;
+  onHush?: (on: boolean) => void;
   onClose: () => void;
 }) {
   const { people, isHost, code, matches = [], groups } = props;
@@ -103,6 +110,21 @@ export function PeoplePanel(props: {
             <input value={announcement} maxLength={200} placeholder="Announcement to everyone" onChange={(e) => setAnnouncement(e.target.value)} />
             <button className="btn btn-sm" disabled={!announcement.trim()}>Send</button>
           </form>
+          <div className="small muted" style={{ marginTop: 4 }}>Auditorium</div>
+          <label className="toggle small">
+            <span>
+              Hush the audience
+              <span className="muted person-sub">Mutes every mic in the auditorium and keeps them off. Pass the mic for questions.</span>
+            </span>
+            <input type="checkbox" checked={Boolean(props.hushed)} onChange={(e) => props.onHush?.(e.target.checked)} />
+          </label>
+          <label className="toggle small">
+            <span>
+              Presenters only on stage
+              <span className="muted person-sub">Ropes off the stage. Use “Presenter” on someone’s row to let them up.</span>
+            </span>
+            <input type="checkbox" checked={Boolean(props.stageLocked)} onChange={(e) => props.onStageLocked?.(e.target.checked)} />
+          </label>
           <div className="small muted" style={{ marginTop: 4 }}>Discussion groups</div>
           {groups ? (
             <>
@@ -180,6 +202,7 @@ export function PeoplePanel(props: {
               {p.you && ' (you)'}
               {p.hand && ' ✋'}
               {p.mic && ' 🎤'}
+              {p.presenter && <span className="badge-presenter">presenter</span>}
               {p.bot && <span className="muted"> · bot</span>}
               {p.muted && <span className="muted"> · muted</span>}
               {(p.tag || p.where) && (
@@ -199,6 +222,11 @@ export function PeoplePanel(props: {
             ) : (
               (p.hand || !p.you) && <button className="btn btn-sm" onClick={() => props.onPassMic!(p.id)}>Give mic</button>
             ))}
+            {isHost && props.stageLocked && !p.you && props.onPresenter && (
+              <button className={`btn btn-sm ${p.presenter ? 'btn-on' : ''}`} title={p.presenter ? 'Send them back behind the rope' : 'Let them through the rope to the stage'} onClick={() => props.onPresenter!(p.id, !p.presenter)}>
+                {p.presenter ? '✓ Presenter' : 'Presenter'}
+              </button>
+            )}
             {isHost && live && !p.you && !p.bot && !p.muted && <button className="btn btn-sm" onClick={() => act(`/meetings/${code}/participants/${encodeURIComponent(p.id)}/mute`)}>Mute</button>}
             {isHost && live && !p.you && !p.bot && (
               <button className="btn btn-sm" onClick={() => confirm(`Remove ${p.name}?`) && act(`/meetings/${code}/participants/${encodeURIComponent(p.id)}/remove`)}>Remove</button>
