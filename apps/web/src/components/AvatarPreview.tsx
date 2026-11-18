@@ -26,8 +26,8 @@ export function AvatarPreview({ name, color, look, video }: { name: string; colo
     host.appendChild(renderer.domElement);
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 50);
-    camera.position.set(0, 1.75, 4.1);
-    camera.lookAt(0, 1.45, 0);
+    camera.position.set(0, 1.45, 5.4);
+    camera.lookAt(0, 1.28, 0);
     scene.add(new THREE.HemisphereLight('#fff9f0', '#7a7468', 1.9));
     const sun = new THREE.DirectionalLight('#ffffff', 1.5);
     sun.position.set(2, 4, 3);
