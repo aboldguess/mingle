@@ -308,7 +308,8 @@ export function WorldView(props: WorldViewProps) {
   const local = room?.localParticipant;
   const camOn = mode === 'live' ? Boolean(local?.isCameraEnabled) : soloCam;
   const micOn = mode === 'live' ? Boolean(local?.isMicrophoneEnabled) : false;
-  const sharing = Boolean(local?.isScreenShareEnabled);
+  // Slides travel as a screen share too; only count a real screen share here.
+  const sharing = Boolean(local?.isScreenShareEnabled) && !deckTrackRef.current;
   const handUp = mode === 'live' ? Boolean(sessionRef.current?.handUp) : soloHand;
   useEffect(() => {
     const el = selfViewRef.current;
@@ -966,7 +967,7 @@ export function WorldView(props: WorldViewProps) {
         ))}
       </div>
 
-      {tip && !showHelp && !frontRow && (
+      {tip && !showHelp && !frontRow && !deck && !deckBusy && (
         <div className="hud-tip">
           <span>💡 {tip.text}</span>
           <button className="tip-skip" onClick={() => doneTip(tip.id)}>Got it</button>

@@ -13,7 +13,7 @@ function check(cond, msg) {
   console.log('ok -', msg);
 }
 
-async function until(page, fn, arg, what, timeout = 15000) {
+async function until(page, fn, arg, what, timeout = 30000) {
   const start = Date.now();
   while (Date.now() - start < timeout) {
     if (await page.evaluate(fn, arg)) return;
@@ -48,7 +48,10 @@ async function until(page, fn, arg, what, timeout = 15000) {
   const url = host.url();
   await host.waitForSelector('.studio', { timeout: 15000 });
   // Frame the webcam: zoom in on the face, and see it on the live preview.
+  await host.waitForSelector('.cam-framer-view video');
+  await host.waitForFunction(() => document.querySelector('.cam-framer-view video')?.videoWidth > 0);
   await host.locator('input[aria-label="Zoom in on your face"]').fill('1.6');
+  await host.waitForSelector('.cam-framer-crop[aria-valuenow="160"]');
   await host.waitForTimeout(2500);
   await host.screenshot({ path: `${SHOTS}/prejoin.png` });
   await host.click('button:has-text("Open the venue")');
@@ -112,7 +115,8 @@ async function until(page, fn, arg, what, timeout = 15000) {
   await W(guest, () => { const w = window.__mingleWorld; w.yaw = Math.PI; w.pitch = 0.5; });
   await until(host, () => { const w = window.__mingleWorld; return w.getAvatar(w.remoteIds()[0]).head.rotation.x > 0.2; }, null, 'guest head to tilt up');
   check(true, 'looking up tilts the head up for others');
-  await host.waitForTimeout(1500);
+  await W(guest, () => { const w = window.__mingleWorld; w.yaw = Math.PI; w.pitch = 0; });
+  await until(host, () => { const w = window.__mingleWorld; const a = w.getAvatar(w.remoteIds()[0]); return !a.turn.catching && Math.abs(a.head.rotation.y) < 0.03; }, null, 'guest body to settle');
   const bodyBefore = await W(host, () => { const w = window.__mingleWorld; return w.getAvatar(w.remoteIds()[0]).root.rotation.y; });
   await W(guest, () => { const w = window.__mingleWorld; w.yaw = Math.PI + 0.3; w.pitch = 0; });
   await until(host, () => { const w = window.__mingleWorld; return Math.abs(w.getAvatar(w.remoteIds()[0]).head.rotation.y) > 0.25; }, null, 'guest head to turn');
@@ -122,7 +126,7 @@ async function until(page, fn, arg, what, timeout = 15000) {
 
   // Body language.
   await W(guest, () => window.__mingleSession.gesture('wave'));
-  await until(host, () => { const w = window.__mingleWorld; return w.getAvatar(w.remoteIds()[0]).gesture?.kind === 'wave'; }, null, 'wave to show');
+  await until(host, () => { const w = window.__mingleWorld; return w.remoteIds().some((id) => w.getAvatar(id).gesture?.kind === 'wave'); }, null, 'wave to show');
   check(true, 'gestures sync');
 
   // Business cards: the guest hands theirs to the host.

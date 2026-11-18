@@ -176,11 +176,12 @@ export function buildVenue(): Venue {
   const podiumFront = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.34), new THREE.MeshBasicMaterial({ map: plaque('SPEAKER', '#e8dcc0', 512, 192, '700 92px system-ui, sans-serif'), transparent: true }));
   podiumFront.position.set(PRESENTER_SPOT.x, STAGE.top + 0.78, PODIUM.maxZ + 0.01);
   group.add(podiumFront);
-  const micStem = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.42, 6), toon('#555a63'));
-  micStem.position.set(PRESENTER_SPOT.x + 0.3, STAGE.top + 1.3, PODIUM.minZ + 0.12);
-  micStem.rotation.x = -0.5;
-  const micHead = new THREE.Mesh(new THREE.SphereGeometry(0.045, 10, 8), toon('#2a2a2a'));
-  micHead.position.set(PRESENTER_SPOT.x + 0.3, STAGE.top + 1.48, PODIUM.minZ - 0.0);
+  // A gooseneck mic off to one side, low enough to stay out of the speaker's eyeline.
+  const micStem = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.26, 6), toon('#555a63'));
+  micStem.position.set(PODIUM.maxX - 0.12, STAGE.top + 1.24, PODIUM.minZ + 0.2);
+  micStem.rotation.x = -0.6;
+  const micHead = new THREE.Mesh(new THREE.SphereGeometry(0.03, 10, 8), toon('#2a2a2a'));
+  micHead.position.set(PODIUM.maxX - 0.12, STAGE.top + 1.35, PODIUM.minZ + 0.13);
   group.add(micStem, micHead);
   const spot = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.66, 40), new THREE.MeshBasicMaterial({ color: '#e8dcc0', side: THREE.DoubleSide, transparent: true, opacity: 0.85 }));
   spot.rotation.x = -Math.PI / 2;

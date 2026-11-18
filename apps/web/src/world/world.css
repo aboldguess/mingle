@@ -151,7 +151,7 @@ kbd { display: inline-block; min-width: 1.5em; text-align: center; background: #
 .slide-info .small { opacity: 0.8; }
 
 /* Host tools: stage rope and hushing the audience. */
-.host-tools label.toggle { display: flex; align-items: center; justify-content: space-between; gap: 8px; cursor: pointer; font-weight: 500; margin: 0; }
+.host-tools label.toggle { display: flex; flex-direction: row; text-align: left; align-items: center; justify-content: space-between; gap: 8px; cursor: pointer; font-weight: 500; margin: 0; }
 .host-tools label.toggle input { width: auto; flex: 0 0 auto; margin: 0; }
 .badge-presenter { margin-left: 6px; padding: 0 6px; border-radius: 999px; font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; background: #8e2a35; color: #fff; vertical-align: middle; }
 .btn-on { border-color: #4f9d69; background: rgba(79, 157, 105, 0.15); }
