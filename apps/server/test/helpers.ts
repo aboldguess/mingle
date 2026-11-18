@@ -28,6 +28,10 @@ export class FakeMedia implements MediaService {
   async listParticipantCount() {
     return 0;
   }
+  async verifyJoinToken(token: string) {
+    const g = this.grants.find((x) => `token-for-${x.identity}` === token);
+    return g ? { room: g.roomName, identity: g.identity } : null;
+  }
   async receiveWebhook(body: string) {
     return JSON.parse(body);
   }

@@ -25,6 +25,8 @@ export interface WorldViewProps {
   isHost?: boolean;
   /** The stage starts roped off for everyone but pre-agreed presenters. */
   stageRestricted?: boolean;
+  /** Live mode: our join token, which proves to the server we were admitted (slide uploads). */
+  joinToken?: string;
   /** Solo demo: start with the camera on (chosen before joining). */
   soloCamera?: { deviceId: string };
   planLimitEndsAt?: string | null;
@@ -466,7 +468,7 @@ export function WorldView(props: WorldViewProps) {
     if (worldRef.current?.localZone !== 'stage') return toast('Step up to the podium on stage to put slides on the big screen.');
     setDeckBusy(isPowerPoint(file) ? 'Converting your PowerPoint…' : 'Opening your slides…');
     try {
-      const opened = await SlideDeck.open(file, (f) => convertDeck(f, mode === 'live' ? props.code : undefined));
+      const opened = await SlideDeck.open(file, (f) => convertDeck(f, mode === 'live' && props.code ? { code: props.code, joinToken: props.joinToken } : undefined));
       if (deckRef.current || sharing) await stopSlides();
       if (sharing && local) await local.setScreenShareEnabled(false);
       deckRef.current = opened;

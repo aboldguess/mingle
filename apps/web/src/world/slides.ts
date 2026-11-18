@@ -30,9 +30,12 @@ export function isPowerPoint(file: File) {
 }
 
 /** Ask the server to turn a PowerPoint deck into a PDF. */
-export async function convertDeck(file: File, meetingCode?: string): Promise<ArrayBuffer> {
-  const url = meetingCode ? `/api/meetings/${meetingCode}/slides/convert` : '/api/slides/convert';
-  const res = await fetch(url, { method: 'POST', body: file, headers: { 'content-type': 'application/octet-stream' }, credentials: 'same-origin' });
+export async function convertDeck(file: File, event?: { code: string; joinToken?: string }): Promise<ArrayBuffer> {
+  const url = event ? `/api/meetings/${event.code}/slides/convert` : '/api/slides/convert';
+  // In an event, the join token proves we were let in.
+  const headers: Record<string, string> = { 'content-type': 'application/octet-stream' };
+  if (event?.joinToken) headers['x-mingle-token'] = event.joinToken;
+  const res = await fetch(url, { method: 'POST', body: file, headers, credentials: 'same-origin' });
   if (!res.ok) {
     let message = `Could not convert that deck (${res.status}). Try exporting it as a PDF.`;
     try {

@@ -356,7 +356,13 @@ export const meetingRoutes: FastifyPluginAsync = async (app) => {
     };
     scoped.post<{ Params: { code: string } }>('/meetings/:code/slides/convert', opts, async (req, reply) => {
       const access = await loadMeeting(db, req.params.code, req.user);
-      if (access.meeting.status !== 'live' && !access.isHost) throw badRequest('Slides can be converted once the event is live', 'not_live');
+      if (!access.isHost) {
+        // Only people actually admitted to this event: they prove it with their join token.
+        const token = req.headers['x-mingle-token'];
+        const grant = typeof token === 'string' ? await media.verifyJoinToken(token) : null;
+        if (!grant || grant.room !== roomNameFor(access.meeting.code)) throw forbidden('Join the event to upload slides');
+        if (access.meeting.status !== 'live') throw badRequest('Slides can be converted once the event is live', 'not_live');
+      }
       return convert(req, reply, access.org.id, access.meeting.code);
     });
     scoped.post('/slides/convert', opts, async (req, reply) => {

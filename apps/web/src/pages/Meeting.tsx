@@ -232,6 +232,7 @@ function LiveVenue({ info, join, choices, color, profile, onLeave }: { info: Mee
       code={info.code}
       isHost={join.isHost}
       stageRestricted={join.stageRestricted}
+      joinToken={join.token}
       planLimitEndsAt={join.planLimitEndsAt}
       onLeave={() => {
         leftRef.current = true;

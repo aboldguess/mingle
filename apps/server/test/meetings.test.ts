@@ -126,16 +126,27 @@ describe('meetings', () => {
     expect(ctx.media.calls).toEqual(expect.arrayContaining([{ op: 'muteParticipant', args: [`mingle-${code}`, 'g_b'] }]));
   });
 
-  it('refuses slide conversion for files that are not decks or before the event is live', async () => {
+  it('only converts slides for people admitted to the event', async () => {
     const owner = await signUp(ctx.app);
     const { code } = await createMeeting(owner.client, owner.orgId);
-    const upload = (body: Buffer) =>
-      ctx.app.inject({ method: 'POST', url: `/api/meetings/${code}/slides/convert`, payload: body, headers: { 'content-type': 'application/octet-stream', origin: 'http://localhost:5173' } });
-    expect((await upload(Buffer.from('PK\x03\x04'))).json().error.code).toBe('not_live');
-    await owner.client.post(`/api/meetings/${code}/join`);
-    const notDeck = await upload(Buffer.from('hello'));
+    const upload = (body: Buffer, token?: string) =>
+      ctx.app.inject({
+        method: 'POST',
+        url: `/api/meetings/${code}/slides/convert`,
+        payload: body,
+        headers: { 'content-type': 'application/octet-stream', origin: 'http://localhost:5173', ...(token ? { 'x-mingle-token': token } : {}) },
+      });
+    // Someone who merely knows the code can't queue conversions.
+    expect((await upload(Buffer.from('PK'))).statusCode).toBe(403);
+    expect((await upload(Buffer.from('PK'), 'forged')).statusCode).toBe(403);
+    const guest = await new Client(ctx.app).post(`/api/meetings/${code}/join`, { displayName: 'Speaker' });
+    const notDeck = await upload(Buffer.from('hello'), guest.data.token);
     expect(notDeck.statusCode).toBe(400);
     expect(notDeck.json().error.code).toBe('not_a_deck');
+    // A token for a different event doesn't count.
+    const other = await createMeeting(owner.client, owner.orgId);
+    const otherGuest = await new Client(ctx.app).post(`/api/meetings/${other.code}/join`, { displayName: 'Elsewhere' });
+    expect((await upload(Buffer.from('PK'), otherGuest.data.token)).statusCode).toBe(403);
     // Outside an event (the solo demo) conversion needs an account.
     const anon = await ctx.app.inject({ method: 'POST', url: '/api/slides/convert', payload: Buffer.from('PK'), headers: { 'content-type': 'application/octet-stream', origin: 'http://localhost:5173' } });
     expect(anon.statusCode).toBe(401);

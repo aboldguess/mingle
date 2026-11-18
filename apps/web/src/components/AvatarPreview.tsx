@@ -37,6 +37,7 @@ export function AvatarPreview({ name, color, look, video }: { name: string; colo
     scene.add(plinth);
 
     const avatar = new Avatar(name, color);
+    avatar.resetFacing(Math.PI);
     avatarRef.current = avatar;
     scene.add(avatar.root);
 
@@ -85,7 +86,8 @@ export function AvatarPreview({ name, color, look, video }: { name: string; colo
       }
       // Looks around to show off its profile: the head leads and the body
       // catches up, just like in the venue.
-      const look = Math.sin(t * 0.45) * 0.9 + Math.sin(t * 1.3) * 0.2 * Math.max(0, Math.cos(t * 0.3)) + spin;
+      // The avatar faces -Z and the camera sits on +Z, so π faces it towards you.
+      const look = Math.PI + Math.sin(t * 0.45) * 0.9 + Math.sin(t * 1.3) * 0.2 * Math.max(0, Math.cos(t * 0.3)) + spin;
       avatar.update(dt, 0, Math.sin(t * 0.7) * 0.1, look);
       renderer.render(scene, camera);
     });
