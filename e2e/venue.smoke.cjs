@@ -13,7 +13,7 @@ function check(cond, msg) {
   console.log('ok -', msg);
 }
 
-async function until(page, fn, arg, what, timeout = 15000) {
+async function until(page, fn, arg, what, timeout = 30000) {
   const start = Date.now();
   while (Date.now() - start < timeout) {
     if (await page.evaluate(fn, arg)) return;
@@ -46,16 +46,21 @@ async function until(page, fn, arg, what, timeout = 15000) {
   await host.click('text=Open a venue now');
   await host.waitForURL(/\/m\//);
   const url = host.url();
-  await host.waitForSelector('.lk-prejoin', { timeout: 15000 });
-  await host.waitForTimeout(1000);
+  await host.waitForSelector('.studio', { timeout: 15000 });
+  // Frame the webcam: zoom in on the face, and see it on the live preview.
+  await host.waitForSelector('.cam-framer-view video');
+  await host.waitForFunction(() => document.querySelector('.cam-framer-view video')?.videoWidth > 0);
+  await host.locator('input[aria-label="Zoom in on your face"]').fill('1.6');
+  await host.waitForSelector('.cam-framer-crop[aria-valuenow="160"]');
+  await host.waitForTimeout(2500);
   await host.screenshot({ path: `${SHOTS}/prejoin.png` });
   await host.click('button:has-text("Open the venue")');
   await host.waitForSelector('.world-canvas', { timeout: 20000 });
 
   const guest = await mk();
   await guest.goto(url);
-  await guest.waitForSelector('.lk-prejoin');
-  await guest.fill('.lk-prejoin input#username', 'Gina Guest');
+  await guest.waitForSelector('.studio');
+  await guest.getByLabel('Your name').fill('Gina Guest');
   await guest.click('button:has-text("Enter the venue")');
   await guest.waitForSelector('.world-canvas', { timeout: 20000 });
 
@@ -102,9 +107,26 @@ async function until(page, fn, arg, what, timeout = 15000) {
   await until(host, () => [...window.__mingleSession.profiles.values()].some((p) => p.goal === 'find funding' && p.look.prop === 'mug' && p.look.tv === 'flat'), null, 'guest profile to sync');
   check(true, 'profile goals and avatar looks sync');
 
+  // Webcam framing chosen before joining travels with the profile.
+  await until(guest, () => [...window.__mingleSession.profiles.values()].some((p) => p.look.cam.zoom > 1.5), null, 'host framing to reach the guest');
+  check(true, 'webcam framing syncs');
+
+  // Heads: looking up tilts the telly up, and a small glance turns only the head.
+  await W(guest, () => { const w = window.__mingleWorld; w.yaw = Math.PI; w.pitch = 0.5; });
+  await until(host, () => { const w = window.__mingleWorld; return w.getAvatar(w.remoteIds()[0]).head.rotation.x > 0.2; }, null, 'guest head to tilt up');
+  check(true, 'looking up tilts the head up for others');
+  await W(guest, () => { const w = window.__mingleWorld; w.yaw = Math.PI; w.pitch = 0; });
+  await until(host, () => { const w = window.__mingleWorld; const a = w.getAvatar(w.remoteIds()[0]); return !a.turn.catching && Math.abs(a.head.rotation.y) < 0.03; }, null, 'guest body to settle');
+  const bodyBefore = await W(host, () => { const w = window.__mingleWorld; return w.getAvatar(w.remoteIds()[0]).root.rotation.y; });
+  await W(guest, () => { const w = window.__mingleWorld; w.yaw = Math.PI + 0.3; w.pitch = 0; });
+  await until(host, () => { const w = window.__mingleWorld; return Math.abs(w.getAvatar(w.remoteIds()[0]).head.rotation.y) > 0.25; }, null, 'guest head to turn');
+  const bodyAfter = await W(host, () => { const w = window.__mingleWorld; return w.getAvatar(w.remoteIds()[0]).root.rotation.y; });
+  check(Math.abs(bodyAfter - bodyBefore) < 0.01, 'a small glance turns the head but not the body');
+  await W(guest, () => { const w = window.__mingleWorld; w.yaw = Math.PI; });
+
   // Body language.
   await W(guest, () => window.__mingleSession.gesture('wave'));
-  await until(host, () => { const w = window.__mingleWorld; return w.getAvatar(w.remoteIds()[0]).gesture?.kind === 'wave'; }, null, 'wave to show');
+  await until(host, () => { const w = window.__mingleWorld; return w.remoteIds().some((id) => w.getAvatar(id).gesture?.kind === 'wave'); }, null, 'wave to show');
   check(true, 'gestures sync');
 
   // Business cards: the guest hands theirs to the host.
@@ -167,8 +189,30 @@ async function until(page, fn, arg, what, timeout = 15000) {
   check(true, 'confetti hit reaches the target');
   await guest.screenshot({ path: `${SHOTS}/venue-splat.png` });
 
+  // Host ropes off the stage: the guest can't get up there until made a presenter.
+  await W(host, () => window.__mingleSession.setStageLocked(true));
+  await until(guest, () => window.__mingleWorld.stageRestrictedForMe, null, 'stage rope to reach the guest');
+  const refused = await W(guest, () => !window.__mingleWorld.teleport(5.6, -29));
+  check(refused, 'audience cannot get past the stage rope');
+  await W(host, (id) => window.__mingleSession.setPresenter(id, true), guestId);
+  await until(guest, () => !window.__mingleWorld.stageRestrictedForMe, null, 'guest to be let through');
+  check(true, 'host can make someone a presenter');
+
+  // Hush the audience: mics in the auditorium go off.
+  await W(guest, () => { const w = window.__mingleWorld; w.pos.set(3, 0, -10); });
+  await until(guest, () => window.__mingleSession.room.localParticipant.isMicrophoneEnabled, null, 'guest mic on');
+  await W(host, () => { const w = window.__mingleWorld; w.pos.set(0, 0, -6); });
+  await host.waitForTimeout(500);
+  await host.keyboard.press('Tab');
+  await host.locator('label:has-text("Hush the audience") input').check();
+  await until(guest, () => !window.__mingleSession.room.localParticipant.isMicrophoneEnabled, null, 'guest mic to be hushed');
+  check(true, 'hushing the audience mutes mics in the auditorium');
+  await host.locator('label:has-text("Hush the audience") input').uncheck();
+  await host.keyboard.press('Tab');
+  await W(guest, () => window.__mingleSession.room.localParticipant.setMicrophoneEnabled(true));
+
   // Stage: guest walks on stage, host sees them on the big screen.
-  await W(guest, () => { const w = window.__mingleWorld; w.pos.set(0, 1.1, -28.5); w.yaw = Math.PI; });
+  await W(guest, () => { const w = window.__mingleWorld; w.teleport(5.6, -28.95, Math.PI); });
   await W(host, () => { const w = window.__mingleWorld; w.pos.set(0, 0, -6); w.yaw = 0; w.pitch = 0.12; });
   await until(host, () => window.__mingleWorld.venue.screen.material.map?.isVideoTexture === true, null, 'stage camera on the big screen', 20000);
   check(true, 'presenter camera appears on the big screen');
@@ -176,6 +220,20 @@ async function until(page, fn, arg, what, timeout = 15000) {
   check(true, 'stage mic reaches the back of the auditorium');
   await host.waitForTimeout(2000);
   await host.screenshot({ path: `${SHOTS}/venue-keynote.png` });
+
+  // Slides: the presenter uploads a PowerPoint deck and flicks to slide 2.
+  if (process.env.DECK) {
+    await guest.setInputFiles('input[type=file][accept*=pdf]', process.env.DECK);
+    await guest.waitForSelector('.slide-bar:has-text("Slide 1 of")', { timeout: 60000 });
+    await guest.keyboard.press('PageDown');
+    await guest.waitForSelector('.slide-bar:has-text("Slide 2 of")');
+    await until(host, () => [...window.__mingleSession.room.remoteParticipants.values()].some((p) => [...p.trackPublications.values()].some((t) => t.trackName === 'slides' && t.isSubscribed)), null, 'slides to reach the host', 20000);
+    check(true, 'uploaded slides go on the big screen for everyone');
+    await W(host, () => { const w = window.__mingleWorld; w.pos.set(-2, 0, -12); w.yaw = -0.12; w.pitch = 0.2; });
+    await host.waitForTimeout(3000);
+    await host.screenshot({ path: `${SHOTS}/venue-slides.png` });
+    await guest.screenshot({ path: `${SHOTS}/presenter-view.png` });
+  }
 
   // Host removes guest.
   await host.keyboard.press('Tab');

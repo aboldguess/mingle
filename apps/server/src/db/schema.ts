@@ -118,6 +118,11 @@ export const meetings = pgTable(
     allowGuests: boolean('allow_guests').notNull().default(true),
     waitingRoom: boolean('waiting_room').notNull().default(false),
     muteOnEntry: boolean('mute_on_entry').notNull().default(false),
+    /**
+     * Pre-agreed presenters, by email. When any are listed the stage starts
+     * roped off: only these people (and hosts) can walk up to the podium.
+     */
+    presenterEmails: text('presenter_emails').array().notNull().default(sql`'{}'::text[]`),
     startedAt: timestamp('started_at', { withTimezone: true }),
     endedAt: timestamp('ended_at', { withTimezone: true }),
     createdAt: createdAt(),

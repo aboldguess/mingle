@@ -15,9 +15,36 @@ export interface AvatarLook {
   /** 0.8 – 1.2 */
   build: number;
   tv: 'crt' | 'flat';
+  /** Colour of the telly's casing. */
+  casing: Casing;
   prop: 'none' | 'mug' | 'jumper' | 'headphones' | 'lanyard';
+  /** How the webcam is framed on the telly screen, so faces look the right size. */
+  cam: CamFrame;
 }
-export const DEFAULT_LOOK: AvatarLook = { height: 1, build: 1, tv: 'crt', prop: 'none' };
+
+/**
+ * Webcam framing. `x`/`y` are the centre of the crop as a fraction of the raw
+ * camera image (0..1, y measured from the top) and `zoom` is how far in to
+ * crop: 1 fills the screen with the whole picture, 2 shows half as much.
+ */
+export interface CamFrame {
+  zoom: number;
+  x: number;
+  y: number;
+}
+export const DEFAULT_CAM: CamFrame = { zoom: 1, x: 0.5, y: 0.5 };
+export const MAX_ZOOM = 3;
+
+export type Casing = 'cream' | 'charcoal' | 'mint' | 'tomato' | 'sky';
+export const CASINGS: Array<{ id: Casing; label: string; color: string }> = [
+  { id: 'cream', label: 'Cream', color: '#f1e3c8' },
+  { id: 'charcoal', label: 'Charcoal', color: '#3a3d44' },
+  { id: 'mint', label: 'Mint', color: '#bfe0cf' },
+  { id: 'tomato', label: 'Tomato', color: '#d9675a' },
+  { id: 'sky', label: 'Sky', color: '#9cc7e3' },
+];
+
+export const DEFAULT_LOOK: AvatarLook = { height: 1, build: 1, tv: 'crt', casing: 'cream', prop: 'none', cam: DEFAULT_CAM };
 export const PROPS: Array<{ id: AvatarLook['prop']; label: string }> = [
   { id: 'none', label: 'Nothing' },
   { id: 'mug', label: 'Coffee mug' },
@@ -41,8 +68,70 @@ export function cleanLook(l: Partial<AvatarLook> | undefined): AvatarLook {
     height: num(l?.height, 0.9, 1.1),
     build: num(l?.build, 0.8, 1.2),
     tv: l?.tv === 'flat' ? 'flat' : 'crt',
+    casing: CASINGS.some((c) => c.id === l?.casing) ? l!.casing! : 'cream',
     prop: PROPS.some((p) => p.id === l?.prop) ? l!.prop! : 'none',
+    cam: cleanCam(l?.cam),
   };
+}
+
+export function cleanCam(c: Partial<CamFrame> | undefined): CamFrame {
+  const num = (v: unknown, min: number, max: number, dflt: number) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : dflt);
+  return { zoom: num(c?.zoom, 1, MAX_ZOOM, 1), x: num(c?.x, 0, 1, 0.5), y: num(c?.y, 0, 1, 0.5) };
+}
+
+/**
+ * Which part of a video texture to show on a screen of `screenAspect`, as
+ * three.js texture repeat/offset (UV space, v measured from the bottom).
+ * Crops to cover the screen, zooms in, then centres on the framed face.
+ */
+export function cropFor(videoAspect: number, screenAspect: number, cam: CamFrame) {
+  let rx = 1;
+  let ry = 1;
+  if (videoAspect > screenAspect) rx = screenAspect / videoAspect;
+  else ry = videoAspect / screenAspect;
+  rx /= cam.zoom;
+  ry /= cam.zoom;
+  const ox = Math.min(1 - rx, Math.max(0, cam.x - rx / 2));
+  const oy = Math.min(1 - ry, Math.max(0, 1 - cam.y - ry / 2));
+  return { repeat: { x: rx, y: ry }, offset: { x: ox, y: oy } };
+}
+
+/** The head turns on its own up to this far (radians) before the body follows. */
+export const HEAD_FREE = 0.45;
+/** The neck never twists further than this; the body is dragged round instead. */
+export const HEAD_MAX = 1.15;
+
+export interface TurnState {
+  /** Seconds the head has been turned past HEAD_FREE. */
+  held: number;
+  /** The body is turning to line up with the head. */
+  catching: boolean;
+}
+
+export function wrapAngle(a: number) {
+  return Math.atan2(Math.sin(a), Math.cos(a));
+}
+
+/**
+ * Advance the body's facing towards where the head looks. Small glances and
+ * head shakes leave the body still; a longer look, or walking, makes the body
+ * catch up, and the neck never twists past HEAD_MAX.
+ */
+export function stepBodyYaw(body: number, look: number, speed: number, dt: number, s: TurnState): number {
+  const off = wrapAngle(look - body);
+  const walking = speed > 0.6;
+  if (walking) s.catching = true;
+  if (Math.abs(off) > HEAD_FREE) {
+    s.held += dt;
+    if (s.held > 0.35) s.catching = true;
+  } else s.held = 0;
+  if (s.catching) {
+    body += off * (1 - Math.exp(-dt * (walking ? 10 : 4.5)));
+    if (Math.abs(wrapAngle(look - body)) < 0.04 && !walking) s.catching = false;
+  }
+  const rest = wrapAngle(look - body);
+  if (Math.abs(rest) > HEAD_MAX) body = look - Math.sign(rest) * HEAD_MAX;
+  return wrapAngle(body);
 }
 
 export function colorFor(id: string): string {
@@ -80,6 +169,8 @@ export class Avatar {
   private propObj: THREE.Object3D | null = null;
   private gesture: { kind: Gesture; start: number } | null = null;
   private walkPhase = Math.random() * 10;
+  private bodyYaw = NaN;
+  private turn: TurnState = { held: 0, catching: false };
   private blinkAt = 0;
   private speaking = false;
   private faceMood: 'happy' | 'talk' | 'blink' = 'happy';
@@ -151,7 +242,8 @@ export class Avatar {
     }
     this.head.add(front, back, bezel, screen);
     this.crtParts.push(back);
-    // Faces -Z, like the camera.
+    // Faces -Z, like the camera. Yaw first, then pitch, so nodding works at any head turn.
+    this.head.rotation.order = 'YXZ';
     this.root.add(this.head);
 
     this.tag = makeTag(name, color);
@@ -198,7 +290,8 @@ export class Avatar {
     for (const part of this.crtParts) part.visible = !flat;
     this.caseFront.scale.z = flat ? 0.3 : 1;
     this.caseFront.position.z = flat ? -0.12 : 0;
-    this.caseMat.color.set(flat ? '#2f3238' : '#f1e3c8');
+    this.fitVideo();
+    this.caseMat.color.set(CASINGS.find((c) => c.id === look.casing)?.color ?? '#f1e3c8');
     this.applyProp();
     this.rebuildTag();
   }
@@ -347,22 +440,14 @@ export class Avatar {
     return this.video !== null;
   }
 
-  /** Crop the video to fill the 4:3 screen. */
+  /** Crop the video to fill the 4:3 screen, framed the way its owner chose. */
   private fitVideo() {
     const v = this.video;
     const tex = this.videoTex;
     if (!v || !tex || !v.videoWidth) return;
-    const videoAspect = v.videoWidth / v.videoHeight;
-    const screenAspect = SCREEN_W / SCREEN_H;
-    tex.repeat.set(1, 1);
-    tex.offset.set(0, 0);
-    if (videoAspect > screenAspect) {
-      tex.repeat.x = screenAspect / videoAspect;
-      tex.offset.x = (1 - tex.repeat.x) / 2;
-    } else {
-      tex.repeat.y = videoAspect / screenAspect;
-      tex.offset.y = (1 - tex.repeat.y) / 2;
-    }
+    const c = cropFor(v.videoWidth / v.videoHeight, SCREEN_W / SCREEN_H, this.look.cam ?? DEFAULT_CAM);
+    tex.repeat.set(c.repeat.x, c.repeat.y);
+    tex.offset.set(c.offset.x, c.offset.y);
   }
 
   setSpeaking(on: boolean) {
@@ -403,11 +488,23 @@ export class Avatar {
   }
 
   /**
-   * Advance animation. `speed` is horizontal speed in m/s, `pitch` tilts the head.
+   * Advance animation. `speed` is horizontal speed in m/s, `pitch` tilts the
+   * head up (positive) or down. `lookYaw` is where the person is looking: the
+   * head turns there straight away and the body catches up.
    */
-  update(dt: number, speed: number, pitch: number) {
+  update(dt: number, speed: number, pitch: number, lookYaw?: number) {
     const now = performance.now();
-    const walking = Math.min(1, speed / 4);
+    let turning = 0;
+    if (lookYaw !== undefined) {
+      if (!Number.isFinite(this.bodyYaw)) this.bodyYaw = lookYaw;
+      const before = this.bodyYaw;
+      this.bodyYaw = stepBodyYaw(this.bodyYaw, lookYaw, speed, dt, this.turn);
+      turning = Math.abs(wrapAngle(this.bodyYaw - before)) / Math.max(dt, 1e-3);
+      this.root.rotation.y = this.bodyYaw;
+    }
+    const headYaw = lookYaw === undefined ? 0 : wrapAngle(lookYaw - this.bodyYaw);
+    // Turning on the spot shuffles the feet a little.
+    const walking = Math.min(1, Math.max(speed / 4, Math.min(0.35, turning * 0.2)));
     this.walkPhase += dt * (4 + speed * 2.2);
     const swing = Math.sin(this.walkPhase) * 0.7 * walking;
     const [la, ra, ll, rl] = this.limbs;
@@ -420,7 +517,8 @@ export class Avatar {
     this.body.position.y = 0.95 * h + bob;
     this.body.rotation.x = 0;
     this.head.position.set(0, 1.62 * h + bob + (walking === 0 ? Math.sin(now / 700) * 0.01 : 0), 0);
-    this.head.rotation.x = THREE.MathUtils.clamp(-pitch, -0.6, 0.6) * 0.6;
+    // Looking up tilts the telly up (positive X rotation turns -Z upwards).
+    this.head.rotation.set(THREE.MathUtils.clamp(pitch, -0.9, 0.9) * 0.7, headYaw, 0);
     if (this.look.prop === 'mug' && walking === 0) ra!.parent!.rotation.x = -1.1; // hold the mug up
 
     // Body language.
@@ -482,6 +580,13 @@ export class Avatar {
     const ctx = this.faceCanvas.getContext('2d')!;
     paintCartoonFace(ctx, this.faceCanvas.width, this.faceCanvas.height, this.color, this.name, this.faceMood);
     this.faceTex.needsUpdate = true;
+  }
+
+  /** Snap the body to face where the head looks (after a teleport, say). */
+  resetFacing(yaw: number) {
+    this.bodyYaw = yaw;
+    this.turn = { held: 0, catching: false };
+    this.root.rotation.y = yaw;
   }
 
   /** World position of the body centre, for hit tests. */

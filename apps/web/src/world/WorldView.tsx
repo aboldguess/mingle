@@ -1,13 +1,15 @@
-import { type Room, RoomEvent } from 'livekit-client';
+import { LocalVideoTrack, type Room, RoomEvent, Track } from 'livekit-client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ProfileInput } from '../components/AvatarColorPicker';
-import { DEFAULT_LOOK, type Gesture, GESTURES } from './avatar';
+import { DEFAULT_CAM, DEFAULT_LOOK, type Gesture, GESTURES } from './avatar';
 import { BotCrowd } from './bots';
 import { Captioner, captionsSupported } from './captions';
 import { World } from './engine';
 import { findMatches, type Match } from './match';
+import { api } from '../api';
 import { BoardEditor, CardsPanel, PeoplePanel, type PersonRow } from './panels';
 import { type Card, type ChatLine, WorldSession } from './session';
+import { convertDeck, DECK_ACCEPT, isPowerPoint, SlideDeck } from './slides';
 import { type Branding, isPod, type PodId, PODS, type Zone } from './venue';
 import { type Stroke, Whiteboards } from './whiteboard';
 
@@ -21,6 +23,12 @@ export interface WorldViewProps {
   room?: Room;
   code?: string;
   isHost?: boolean;
+  /** The stage starts roped off for everyone but pre-agreed presenters. */
+  stageRestricted?: boolean;
+  /** Live mode: our join token, which proves to the server we were admitted (slide uploads). */
+  joinToken?: string;
+  /** Solo demo: start with the camera on (chosen before joining). */
+  soloCamera?: { deviceId: string };
   planLimitEndsAt?: string | null;
   onLeave: () => void;
   onEndForAll?: () => void;
@@ -83,6 +91,10 @@ export function WorldView(props: WorldViewProps) {
   const captionerRef = useRef<Captioner | null>(null);
   const matchedRef = useRef(new Set<string>());
   const lastNudge = useRef(0);
+  const deckRef = useRef<SlideDeck | null>(null);
+  const deckTrackRef = useRef<LocalVideoTrack | null>(null);
+  const deckInputRef = useRef<HTMLInputElement>(null);
+  const deckThumbRef = useRef<HTMLCanvasElement>(null);
 
   const cardsKey = `mingle.cards.${props.code ?? 'demo'}`;
   const [locked, setLocked] = useState(false);
@@ -114,6 +126,9 @@ export function WorldView(props: WorldViewProps) {
   const [groups, setGroups] = useState<{ count: number; mine: number | null } | null>(null);
   const [branding, setBrandingState] = useState<Branding | null>(null);
   const [matches, setMatches] = useState<Match[]>([]);
+  const [deck, setDeck] = useState<{ name: string; index: number; count: number } | null>(null);
+  const [deckBusy, setDeckBusy] = useState<string | null>(null);
+  const [soloStage, setSoloStage] = useState<{ locked: boolean; presenters: string[]; hushed: boolean }>({ locked: false, presenters: [], hushed: false });
   const [tipsDone, setTipsDone] = useState<TipId[]>(() => loadJson<TipId[]>('mingle.tipsDone', []));
   const rerender = useCallback(() => setTick((t) => t + 1), []);
 
@@ -186,7 +201,7 @@ export function WorldView(props: WorldViewProps) {
     let walked = 0;
     world.events.onZoneChange = (z) => {
       setZone(z);
-      if (z === 'stage') toast(mode === 'live' ? 'You’re on stage: your camera is on the big screen and your mic fills the hall. Press P to share your screen.' : 'You’re on stage. Turn your camera on to appear on the big screen.');
+      if (z === 'stage') toast(mode === 'live' ? 'You’re on stage: your camera is on the big screen and your mic fills the hall. Put up slides (L) or share your screen (P).' : 'You’re on stage. Put up slides (L), or turn your camera on to appear on the big screen.');
       if (z === 'podA' || z === 'podB') {
         toast('Private pod: only people inside can hear you, and you can’t hear the lobby.');
         doneTip('pods');
@@ -207,7 +222,7 @@ export function WorldView(props: WorldViewProps) {
     });
 
     if (mode === 'live' && room) {
-      const session = new WorldSession(room, world, props.color);
+      const session = new WorldSession(room, world, props.color, { stageRestricted: props.stageRestricted });
       sessionRef.current = session;
       (window as unknown as { __mingleSession?: WorldSession }).__mingleSession = session;
       session.setProfile(props.profile ?? {});
@@ -240,6 +255,8 @@ export function WorldView(props: WorldViewProps) {
         },
         onStroke: (st) => boards.add(st),
         onBoardClear: (b) => boards.clear(b),
+        onStageChange: rerender,
+        onHushMuted: () => toast('The host has hushed the audience, so your mic stays off in the auditorium. Raise your hand (R) to ask for the mic.', undefined, 6000),
       };
       world.events.onHit = ((orig) => (id: string) => {
         orig?.(id);
@@ -268,6 +285,10 @@ export function WorldView(props: WorldViewProps) {
     return () => {
       clearInterval(mapTimer);
       unFrame();
+      deckRef.current?.dispose();
+      deckRef.current = null;
+      deckTrackRef.current?.stop();
+      deckTrackRef.current = null;
       captionerRef.current?.stop();
       captionerRef.current = null;
       boardsRef.current = null;
@@ -289,7 +310,8 @@ export function WorldView(props: WorldViewProps) {
   const local = room?.localParticipant;
   const camOn = mode === 'live' ? Boolean(local?.isCameraEnabled) : soloCam;
   const micOn = mode === 'live' ? Boolean(local?.isMicrophoneEnabled) : false;
-  const sharing = Boolean(local?.isScreenShareEnabled);
+  // Slides travel as a screen share too; only count a real screen share here.
+  const sharing = Boolean(local?.isScreenShareEnabled) && !deckTrackRef.current;
   const handUp = mode === 'live' ? Boolean(sessionRef.current?.handUp) : soloHand;
   useEffect(() => {
     const el = selfViewRef.current;
@@ -312,9 +334,27 @@ export function WorldView(props: WorldViewProps) {
   useEffect(() => {
     const world = worldRef.current;
     if (mode !== 'solo' || !world) return;
-    if (zone === 'stage' && soloCamRef.current) world.setScreenVideo(soloCamRef.current.video);
+    if (deckRef.current) world.setScreenCanvas(deckRef.current.canvas);
+    else if (zone === 'stage' && soloCamRef.current) world.setScreenVideo(soloCamRef.current.video);
     else botsRef.current?.restoreScreen();
-  }, [zone, soloCam, mode]);
+  }, [zone, soloCam, mode, deck]);
+
+  // Solo mode: the host's stage controls drive the rope locally.
+  useEffect(() => {
+    if (mode === 'solo') worldRef.current?.setStageAccess(soloStage.locked, true);
+  }, [mode, soloStage.locked]);
+
+  // Keep the presenter's slide thumbnail current.
+  useEffect(() => {
+    const c = deckThumbRef.current;
+    const img = deckRef.current?.thumbnail();
+    if (!c || !img) return;
+    const ctx = c.getContext('2d')!;
+    ctx.fillStyle = '#111317';
+    ctx.fillRect(0, 0, c.width, c.height);
+    const k = Math.min(c.width / img.width, c.height / img.height);
+    ctx.drawImage(img, (c.width - img.width * k) / 2, (c.height - img.height * k) / 2, img.width * k, img.height * k);
+  }, [deck]);
 
   // Front-row view: copy whatever is on the big screen into a full-window canvas.
   useEffect(() => {
@@ -383,7 +423,8 @@ export function WorldView(props: WorldViewProps) {
         return;
       }
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+        const deviceId = props.soloCamera?.deviceId;
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 }, deviceId: deviceId ? { exact: deviceId } : undefined } });
         const video = document.createElement('video');
         video.muted = true;
         video.playsInline = true;
@@ -407,8 +448,87 @@ export function WorldView(props: WorldViewProps) {
     rerender();
   };
 
+  const stopSlides = async () => {
+    const track = deckTrackRef.current;
+    deckTrackRef.current = null;
+    if (track && local) await local.unpublishTrack(track, true).catch(() => {});
+    track?.stop();
+    deckRef.current?.dispose();
+    deckRef.current = null;
+    setDeck(null);
+    if (mode === 'solo') {
+      if (worldRef.current?.localZone === 'stage' && soloCamRef.current) worldRef.current.setScreenVideo(soloCamRef.current.video);
+      else botsRef.current?.restoreScreen();
+    }
+    rerender();
+  };
+
+  /** Put a PDF or PowerPoint deck on the big screen. */
+  const startSlides = async (file: File) => {
+    if (worldRef.current?.localZone !== 'stage') return toast('Step up to the podium on stage to put slides on the big screen.');
+    setDeckBusy(isPowerPoint(file) ? 'Converting your PowerPoint…' : 'Opening your slides…');
+    try {
+      const opened = await SlideDeck.open(file, (f) => convertDeck(f, mode === 'live' && props.code ? { code: props.code, joinToken: props.joinToken } : undefined));
+      if (deckRef.current || sharing) await stopSlides();
+      if (sharing && local) await local.setScreenShareEnabled(false);
+      deckRef.current = opened;
+      opened.onChange = () => {
+        setDeck({ name: opened.name, index: opened.index, count: opened.count });
+        if (mode === 'solo') worldRef.current?.refreshScreenCanvas();
+      };
+      if (mode === 'live' && local) {
+        // Publish the slide canvas as our screen share: everyone sees exactly this slide.
+        const media = opened.canvas.captureStream(5).getVideoTracks()[0]!;
+        media.contentHint = 'detail';
+        const track = new LocalVideoTrack(media, undefined, false);
+        deckTrackRef.current = track;
+        await local.publishTrack(track, {
+          source: Track.Source.ScreenShare,
+          name: 'slides',
+          simulcast: false,
+          videoEncoding: { maxBitrate: 2_500_000, maxFramerate: 5 },
+          degradationPreference: 'maintain-resolution',
+        });
+      } else {
+        worldRef.current?.setScreenCanvas(opened.canvas);
+      }
+      setDeck({ name: opened.name, index: opened.index, count: opened.count });
+      toast(`“${opened.name}” is on the big screen. Change slides with Page Down / Page Up (most clickers work), or the arrows below.`, undefined, 7000);
+    } catch (e) {
+      toast((e as Error).message, undefined, 8000);
+    } finally {
+      setDeckBusy(null);
+      if (deckInputRef.current) deckInputRef.current.value = '';
+    }
+  };
+
+  const pickSlides = () => {
+    if (deckRef.current) return void stopSlides();
+    if (worldRef.current?.localZone !== 'stage') return toast('Step up to the podium on stage to put slides on the big screen.');
+    worldRef.current?.unlock();
+    deckInputRef.current?.click();
+  };
+
+  // Keep frames flowing from the slide canvas so late arrivals get a picture straight away.
+  useEffect(() => {
+    if (!deck || mode !== 'live') return;
+    const t = setInterval(() => deckRef.current?.repaint(), 400);
+    return () => clearInterval(t);
+  }, [deck, mode]);
+
+  // Solo demo: honour "camera on" from the pre-join screen.
+  const startedSoloCam = useRef(false);
+  useEffect(() => {
+    if (mode !== 'solo' || !props.soloCamera || startedSoloCam.current) return;
+    startedSoloCam.current = true;
+    void toggleCam();
+    // Once, on entry.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const toggleShare = async () => {
     if (!local) return toast('Screen sharing needs a live event.');
+    if (deckRef.current) await stopSlides();
     if (!sharing && worldRef.current?.localZone !== 'stage') return toast('Walk onto the stage to share your screen.');
     try {
       worldRef.current?.unlock();
@@ -612,6 +732,38 @@ export function WorldView(props: WorldViewProps) {
     setGroups(null);
   };
 
+  const setStageLocked = (locked: boolean) => {
+    if (sessionRef.current) sessionRef.current.setStageLocked(locked);
+    else setSoloStage((st) => ({ ...st, locked }));
+    toast(locked ? 'Stage roped off: only presenters (and hosts) can go up. Make someone a presenter from their row below.' : 'The stage is open to everyone.');
+    rerender();
+  };
+
+  const setPresenter = (id: string, on: boolean) => {
+    if (sessionRef.current) sessionRef.current.setPresenter(id, on);
+    else setSoloStage((st) => ({ ...st, presenters: on ? [...st.presenters, id] : st.presenters.filter((x) => x !== id) }));
+    rerender();
+  };
+
+  const setHush = async (on: boolean) => {
+    const session = sessionRef.current;
+    if (!session) {
+      setSoloStage((st) => ({ ...st, hushed: on }));
+      toast(on ? 'Audience hushed (the bots were quiet anyway).' : 'The audience can talk again.');
+      return;
+    }
+    const ids = session.setHush(on);
+    if (on && ids.length && props.code) {
+      // Also mute them at the media server, so nobody's mic stays live.
+      try {
+        await api(`/meetings/${props.code}/mute-many`, { body: { identities: ids } });
+      } catch (e) {
+        toast(`Couldn’t mute everyone: ${(e as Error).message}`);
+      }
+    }
+    toast(on ? `Audience hushed: ${ids.length} mic${ids.length === 1 ? '' : 's'} in the auditorium muted, and they stay off until you lift it. Pass the mic for questions.` : 'The audience can talk again.');
+  };
+
   const applyBranding = (b: Branding) => {
     worldRef.current?.venue.setBranding(b);
     sessionRef.current?.setBranding(b);
@@ -657,6 +809,14 @@ export function WorldView(props: WorldViewProps) {
       else if (e.code === 'KeyE') giveCard();
       else if (e.code === 'KeyK') togglePanel('cards');
       else if (e.code === 'KeyB') openBoard();
+      else if (e.code === 'KeyL') pickSlides();
+      else if (deckRef.current && (e.code === 'PageDown' || e.code === 'BracketRight')) {
+        e.preventDefault();
+        void deckRef.current.next();
+      } else if (deckRef.current && (e.code === 'PageUp' || e.code === 'BracketLeft')) {
+        e.preventDefault();
+        void deckRef.current.prev();
+      }
       else if (/^Digit[7890]$/.test(e.code)) gesture(GESTURES[(Number(e.code.slice(5)) + 3) % 10]!.id);
     };
     window.addEventListener('keydown', onKey);
@@ -725,6 +885,7 @@ export function WorldView(props: WorldViewProps) {
             mic: session.micHolder === room.localParticipant.identity,
             muted: !room.localParticipant.isMicrophoneEnabled,
             where: ZONE_LABEL[zone],
+            presenter: session.stageLocked && session.canPresent(room.localParticipant.identity),
           },
           ...[...room.remoteParticipants.values()].map((p) => ({
             id: p.identity,
@@ -736,13 +897,18 @@ export function WorldView(props: WorldViewProps) {
             mic: session.micHolder === p.identity,
             muted: !p.isMicrophoneEnabled,
             where: whereOf(p.identity),
+            presenter: session.stageLocked && session.canPresent(p.identity),
           })),
         ]
       : [
           { id: 'me', name: props.name, color: props.color, you: true, tag: props.profile?.tag, goal: props.profile?.goal, hand: soloHand, mic: soloMic === 'me', where: ZONE_LABEL[zone] },
-          ...(botsRef.current?.roster ?? []).map((b) => ({ ...b, bot: true, hand: botsRef.current?.handsUp.includes(b.id), mic: soloMic === b.id, where: whereOf(b.id) })),
+          ...(botsRef.current?.roster ?? []).map((b) => ({ ...b, bot: true, hand: botsRef.current?.handsUp.includes(b.id), mic: soloMic === b.id, where: whereOf(b.id), presenter: soloStage.locked && soloStage.presenters.includes(b.id) })),
         ];
   const handsUp = people.filter((p) => p.hand).length;
+  const selfCam = props.profile?.look.cam ?? DEFAULT_CAM;
+  const stageLocked = mode === 'live' ? Boolean(session?.stageLocked) : soloStage.locked;
+  const hushed = mode === 'live' ? Boolean(session?.hushed) : soloStage.hushed;
+  const barred = Boolean(world?.stageRestrictedForMe);
   const micHolderName = people.find((p) => p.mic)?.name;
 
   const copyLink = async () => {
@@ -768,6 +934,8 @@ export function WorldView(props: WorldViewProps) {
           {secondsLeft !== null && <span className={`chip ${secondsLeft < 300 ? 'chip-warn' : ''}`}>{Math.floor(secondsLeft / 60)}:{String(secondsLeft % 60).padStart(2, '0')} left</span>}
           {props.code && <button className="chip chip-btn" onClick={copyLink}>{copied ? 'Link copied' : 'Copy invite link'}</button>}
           {micHolderName && <span className="chip">🎤 {micHolderName} has the mic</span>}
+          {hushed && <span className="chip">🤫 Audience hushed</span>}
+          {stageLocked && (zone === 'auditorium' || zone === 'stage') && <span className="chip">{barred ? '🎗️ Stage: presenters only' : '🎗️ Stage roped off · you’re a presenter'}</span>}
           {isHost && handsUp > 0 && <button className="chip chip-btn" onClick={() => togglePanel('people')}>✋ {handsUp} hand{handsUp > 1 ? 's' : ''} up</button>}
         </div>
       </div>
@@ -801,7 +969,7 @@ export function WorldView(props: WorldViewProps) {
         ))}
       </div>
 
-      {tip && !showHelp && !frontRow && (
+      {tip && !showHelp && !frontRow && !deck && !deckBusy && (
         <div className="hud-tip">
           <span>💡 {tip.text}</span>
           <button className="tip-skip" onClick={() => doneTip(tip.id)}>Got it</button>
@@ -840,10 +1008,32 @@ export function WorldView(props: WorldViewProps) {
         </div>
       )}
 
+      {(deck || deckBusy) && (
+        <div className="slide-bar" role="group" aria-label="Slide controls">
+          {deckBusy ? (
+            <span className="small">{deckBusy}</span>
+          ) : deck && (
+            <>
+              <canvas ref={deckThumbRef} width={160} height={90} className="slide-thumb" aria-hidden />
+              <div className="slide-info">
+                <strong title={deck.name}>{deck.name}</strong>
+                <span className="small">Slide {deck.index + 1} of {deck.count}</span>
+              </div>
+              <button className="btn btn-sm" onClick={() => void deckRef.current?.prev()} disabled={deck.index === 0} title="Previous slide (Page Up)">◀</button>
+              <button className="btn btn-sm btn-primary" onClick={() => void deckRef.current?.next()} disabled={deck.index >= deck.count - 1} title="Next slide (Page Down)">▶</button>
+              <button className="btn btn-sm" onClick={() => void stopSlides()}>Stop</button>
+            </>
+          )}
+        </div>
+      )}
+
       {/* Bottom bar: familiar meeting controls */}
       <div className="hud hud-bottom">
         <div className="selfview" title="Your face, as others see it">
-          <video ref={selfViewRef} muted playsInline autoPlay style={{ display: camOn ? 'block' : 'none' }} />
+          {/* Framed like your telly: zoomed onto your face (mirrored, like a mirror). */}
+          <div className="selfview-zoom" style={{ transform: `scale(${selfCam.zoom})`, transformOrigin: `${(1 - selfCam.x) * 100}% ${selfCam.y * 100}%` }}>
+            <video ref={selfViewRef} muted playsInline autoPlay style={{ display: camOn ? 'block' : 'none' }} />
+          </div>
           {!camOn && <div className="selfview-off">📺</div>}
           <span className="selfview-name">{props.name}</span>
         </div>
@@ -852,6 +1042,8 @@ export function WorldView(props: WorldViewProps) {
           <button className={`hud-btn ${camOn ? '' : 'off'}`} onClick={toggleCam} title="Camera (C)">{camOn ? '📹' : '🚫'}<span>{camOn ? 'Stop video' : 'Start video'}</span></button>
           <span className="hud-sep" />
           <button className={`hud-btn ${sharing ? 'on' : ''}`} onClick={toggleShare} disabled={!sharing && zone !== 'stage'} title={zone === 'stage' ? 'Share your screen on the big screen (P)' : 'Walk onto the stage to share your screen'}>🖥️<span>{sharing ? 'Stop share' : 'Share'}</span></button>
+          <button className={`hud-btn ${deck ? 'on' : ''}`} onClick={pickSlides} disabled={!deck && zone !== 'stage'} title={zone === 'stage' ? 'Put a PDF or PowerPoint deck on the big screen (L)' : 'Step up to the podium to show slides'}>📑<span>{deck ? 'Stop slides' : 'Slides'}</span></button>
+          <input ref={deckInputRef} type="file" accept={DECK_ACCEPT} hidden onChange={(e) => e.target.files?.[0] && void startSlides(e.target.files[0])} />
           <button className={`hud-btn ${frontRow ? 'on' : ''}`} onClick={toggleFrontRow} title="Front-row view of the big screen (F)">🎬<span>Front row</span></button>
           <button className={`hud-btn ${panel === 'people' ? 'on' : ''}`} onClick={() => togglePanel('people')} title="People (Tab)">👥<span>People {people.length}</span></button>
           <button className={`hud-btn ${chatOpen ? 'on' : ''}`} onClick={openChat} title="Chat (Enter)">💬<span>Chat</span></button>
@@ -915,7 +1107,7 @@ export function WorldView(props: WorldViewProps) {
               <span><kbd>E</kbd> give your card</span>
               <span><kbd>R</kbd> raise hand</span>
               <span><kbd>M</kbd> mute · <kbd>C</kbd> camera</span>
-              <span><kbd>P</kbd> share (on stage)</span>
+              <span><kbd>L</kbd> slides · <kbd>P</kbd> share (on stage)</span>
               <span><kbd>Enter</kbd> chat · <kbd>1</kbd>–<kbd>6</kbd> react</span>
               <span><kbd>Tab</kbd> people · <kbd>K</kbd> cards</span>
               <span>Click the map to teleport</span>
@@ -946,6 +1138,11 @@ export function WorldView(props: WorldViewProps) {
           onVisitTable={goToTable}
           branding={branding}
           onBranding={applyBranding}
+          stageLocked={stageLocked}
+          onStageLocked={setStageLocked}
+          onPresenter={setPresenter}
+          hushed={hushed}
+          onHush={(on) => void setHush(on)}
           onClose={() => setPanel(null)}
         />
       )}

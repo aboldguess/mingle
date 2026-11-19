@@ -52,7 +52,11 @@ type Msg =
   /** Host only: call everyone to the auditorium. */
   | { t: 'go' }
   /** Host only: announcement banner. */
-  | { t: 'a'; text: string };
+  | { t: 'a'; text: string }
+  /** Host only: rope off the stage so only these people (and hosts) can present. */
+  | { t: 'stage'; locked: boolean; presenters: string[]; revoked?: string[] }
+  /** Host only: hush the audience (auditorium mics off, their voices silenced). */
+  | { t: 'hush'; on: boolean };
 
 export interface Profile {
   tag: string;
@@ -100,6 +104,10 @@ export interface SessionEvents {
   onBranding?: (b: Branding) => void;
   onStroke?: (s: Stroke) => void;
   onBoardClear?: (b: PodId) => void;
+  /** Stage restriction, presenters or the audience hush changed. */
+  onStageChange?: () => void;
+  /** We were muted because the host hushed the audience. */
+  onHushMuted?: () => void;
 }
 
 const TOPIC = 'mingle';
@@ -153,12 +161,23 @@ export class WorldSession {
   myStrokes: Stroke[] = [];
   events: SessionEvents = {};
   splats = 0;
+  /** Only presenters (and hosts) may go up to the stage. */
+  stageLocked = false;
+  /** People the host made presenters during the event (pre-agreed ones carry it in their token). */
+  readonly presenters = new Set<string>();
+  /** Pre-agreed presenters the host has sent back behind the rope. */
+  readonly revoked = new Set<string>();
+  /** The host has hushed the audience: mics in the auditorium stay off. */
+  hushed = false;
+  private lastHushMute = 0;
 
   constructor(
     readonly room: Room,
     readonly world: World,
     readonly color: string,
+    opts: { stageRestricted?: boolean } = {},
   ) {
+    this.stageLocked = Boolean(opts.stageRestricted);
     this.mediaHost = document.createElement('div');
     this.mediaHost.className = 'media-host';
     this.mediaHost.setAttribute('aria-hidden', 'true');
@@ -213,6 +232,7 @@ export class WorldSession {
     for (const pub of room.localParticipant.trackPublications.values()) this.attachLocal(pub);
 
     this.timer = setInterval(() => this.mix(), 120);
+    this.applyStage();
   }
 
   dispose() {
@@ -239,6 +259,60 @@ export class WorldSession {
     if (this.isHost(this.room.localParticipant) && this.branding) this.send({ t: 'brand', ...this.branding }, true);
     if (this.hands.has(this.room.localParticipant.identity)) this.send({ t: 'r', up: true }, true);
     if (this.isHost(this.room.localParticipant) && this.micHolder) this.send({ t: 'm', id: this.micHolder }, true);
+    if (this.isHost(this.room.localParticipant)) {
+      this.send(this.stageMsg(), true);
+      if (this.hushed) this.send({ t: 'hush', on: true }, true);
+    }
+  }
+
+  private stageMsg(): Msg {
+    return { t: 'stage', locked: this.stageLocked, presenters: [...this.presenters], revoked: [...this.revoked] };
+  }
+
+  /** May this person stand on stage and be heard and seen by the whole hall? */
+  canPresent(id: string): boolean {
+    if (!this.stageLocked || this.presenters.has(id)) return true;
+    const p = id === this.room.localParticipant.identity ? this.room.localParticipant : this.room.remoteParticipants.get(id);
+    if (!p) return false;
+    if (this.isHost(p)) return true;
+    // The host can take back a presenter slot that was agreed before the event.
+    return this.metaFlag(p, 'isPresenter') && !this.revoked.has(id);
+  }
+
+  /** Host: rope off the stage, or open it to everyone. */
+  setStageLocked(locked: boolean) {
+    this.stageLocked = locked;
+    this.send(this.stageMsg(), true);
+    this.applyStage();
+  }
+
+  /** Host: let someone through the rope (or not). */
+  setPresenter(id: string, on: boolean) {
+    if (on) {
+      this.presenters.add(id);
+      this.revoked.delete(id);
+    } else {
+      this.presenters.delete(id);
+      this.revoked.add(id);
+    }
+    this.send(this.stageMsg(), true);
+    this.applyStage();
+  }
+
+  /** Host: hush the audience. Returns who was in the auditorium, for a server-side mute. */
+  setHush(on: boolean): string[] {
+    this.hushed = on;
+    this.send({ t: 'hush', on }, true);
+    this.events.onStageChange?.();
+    if (!on) return [];
+    return [...this.room.remoteParticipants.values()]
+      .filter((p) => this.world.zoneOf(p.identity) === 'auditorium' && p.identity !== this.micHolder && !this.isHost(p))
+      .map((p) => p.identity);
+  }
+
+  private applyStage() {
+    this.world.setStageAccess(this.stageLocked, this.canPresent(this.room.localParticipant.identity));
+    this.events.onStageChange?.();
   }
 
   setProfile(profile: Partial<Profile>) {
@@ -333,8 +407,13 @@ export class WorldSession {
   }
 
   isHost(p: Participant): boolean {
+    return this.metaFlag(p, 'isHost');
+  }
+
+  /** Flags the server signed into someone's join token. */
+  private metaFlag(p: Participant, key: 'isHost' | 'isPresenter'): boolean {
     try {
-      return Boolean(JSON.parse(p.metadata || '{}').isHost);
+      return Boolean(JSON.parse(p.metadata || '{}')[key]);
     } catch {
       return false;
     }
@@ -475,6 +554,28 @@ export class WorldSession {
       case 'a':
         if (this.isHost(p) && typeof msg.text === 'string') this.events.onAnnounce?.(msg.text.slice(0, 200), p.name || 'The host');
         break;
+      case 'stage': {
+        if (!this.isHost(p) || !Array.isArray(msg.presenters)) return;
+        const wasAllowed = this.canPresent(this.room.localParticipant.identity);
+        const wasLocked = this.stageLocked;
+        this.stageLocked = Boolean(msg.locked);
+        this.presenters.clear();
+        for (const id of msg.presenters.slice(0, 200)) if (typeof id === 'string') this.presenters.add(id);
+        this.revoked.clear();
+        if (Array.isArray(msg.revoked)) for (const id of msg.revoked.slice(0, 200)) if (typeof id === 'string') this.revoked.add(id);
+        const allowed = this.canPresent(this.room.localParticipant.identity);
+        if (this.stageLocked && !wasLocked) this.system(allowed ? 'The host roped off the stage. You’re a presenter, so you can still go up.' : 'The host roped off the stage for the speakers.');
+        else if (!this.stageLocked && wasLocked) this.system('The stage is open to everyone again.');
+        else if (this.stageLocked && allowed && !wasAllowed) this.system('The host made you a presenter: head up to the podium when you’re ready.');
+        this.applyStage();
+        break;
+      }
+      case 'hush':
+        if (!this.isHost(p)) return;
+        if (Boolean(msg.on) !== this.hushed) this.system(msg.on ? 'The host hushed the audience: mics in the auditorium are off. Raise your hand (R) to ask a question.' : 'The audience can talk again.');
+        this.hushed = Boolean(msg.on);
+        this.events.onStageChange?.();
+        break;
       case 'c':
         if (typeof msg.text !== 'string') return;
         avatar.say(msg.text.slice(0, 280));
@@ -581,7 +682,16 @@ export class WorldSession {
     const myZone = this.world.localZone;
     const rightX = Math.cos(me.yaw);
     const rightZ = -Math.sin(me.yaw);
-    const presenterOnStage = [...this.room.remoteParticipants.keys()].some((id) => this.world.zoneOf(id) === 'stage');
+    const presenterOnStage = [...this.room.remoteParticipants.keys()].some((id) => this.world.zoneOf(id) === 'stage' && this.canPresent(id));
+    const local = this.room.localParticipant;
+    // A hushed audience keeps its mics off while in the auditorium.
+    if (this.hushed && myZone === 'auditorium' && local.isMicrophoneEnabled && this.micHolder !== local.identity && !this.isHost(local)) {
+      void local.setMicrophoneEnabled(false).catch(() => {});
+      if (performance.now() - this.lastHushMute > 4000) {
+        this.lastHushMute = performance.now();
+        this.events.onHushMuted?.();
+      }
+    }
 
     for (const a of this.audio.values()) {
       const pos = this.world.remotePosition(a.identity);
@@ -594,7 +704,7 @@ export class WorldSession {
         const d = Math.hypot(dx, dz);
         pan = d > 0.5 ? THREE.MathUtils.clamp((dx * rightX + dz * rightZ) / d, -1, 1) * 0.75 : 0;
         const inHall = myZone === 'auditorium' || myZone === 'stage' || this.frontRow;
-        const amplified = theirZone === 'stage' || a.identity === this.micHolder;
+        const amplified = (theirZone === 'stage' && this.canPresent(a.identity)) || a.identity === this.micHolder;
         if ((isPod(myZone) || isPod(theirZone)) && myZone !== theirZone) {
           // Soundproof pods: nobody in or out hears across the glass.
           volume = 0;
@@ -605,8 +715,10 @@ export class WorldSession {
         } else {
           volume = d < 2.5 ? 1 : Math.max(0, 1 - (d - 2.5) / 14) ** 2;
           if ((myZone === 'lobby') !== (theirZone === 'lobby') && !isPod(myZone)) volume *= 0.3;
-          // Hush the audience while someone presents.
+          // Hush the audience while someone presents, or entirely when the host says so.
           if (presenterOnStage && inHall && theirZone === 'auditorium') volume *= 0.5;
+          const speaker = this.room.remoteParticipants.get(a.identity);
+          if (this.hushed && theirZone === 'auditorium' && a.source === Track.Source.Microphone && !(speaker && this.isHost(speaker))) volume = 0;
         }
       }
       if (Math.abs(volume - a.lastVolume) > 0.01) {
@@ -650,7 +762,7 @@ export class WorldSession {
     }
     if (!el) {
       for (const p of all) {
-        if (this.world.zoneOf(p.identity) !== 'stage') continue;
+        if (this.world.zoneOf(p.identity) !== 'stage' || !this.canPresent(p.identity)) continue;
         const v = this.videoEls.get(this.videoKey(p.identity, Track.Source.Camera));
         if (v) {
           owner = p;

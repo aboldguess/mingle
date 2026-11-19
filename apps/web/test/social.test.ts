@@ -26,8 +26,15 @@ describe('matchmaking', () => {
 
 describe('untrusted network data', () => {
   it('clamps avatar looks', () => {
-    expect(cleanLook({ height: 9, build: -1, tv: 'hologram' as never, prop: 'sword' as never })).toEqual({ height: 1.1, build: 0.8, tv: 'crt', prop: 'none' });
-    expect(cleanLook(undefined)).toEqual({ height: 1, build: 1, tv: 'crt', prop: 'none' });
+    expect(cleanLook({ height: 9, build: -1, tv: 'hologram' as never, prop: 'sword' as never, casing: 'gold' as never, cam: { zoom: 50, x: -3, y: Number.NaN } })).toEqual({
+      height: 1.1,
+      build: 0.8,
+      tv: 'crt',
+      casing: 'cream',
+      prop: 'none',
+      cam: { zoom: 3, x: 0, y: 0.5 },
+    });
+    expect(cleanLook(undefined)).toEqual({ height: 1, build: 1, tv: 'crt', casing: 'cream', prop: 'none', cam: { zoom: 1, x: 0.5, y: 0.5 } });
   });
 
   it('rejects bad whiteboard strokes', () => {

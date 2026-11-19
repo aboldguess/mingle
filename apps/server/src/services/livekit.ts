@@ -1,4 +1,4 @@
-import { AccessToken, RoomServiceClient, TrackSource, WebhookReceiver, type WebhookEvent } from 'livekit-server-sdk';
+import { AccessToken, RoomServiceClient, TokenVerifier, TrackSource, WebhookReceiver, type WebhookEvent } from 'livekit-server-sdk';
 import type { Config } from '../config.js';
 
 export interface JoinGrant {
@@ -24,6 +24,8 @@ export interface MediaService {
   endRoom(roomName: string): Promise<void>;
   listParticipantCount(roomName: string): Promise<number>;
   receiveWebhook(body: string, authHeader: string | undefined): Promise<WebhookEvent>;
+  /** Check a join token we issued: which room and who it admits, or null if it isn't valid. */
+  verifyJoinToken(token: string): Promise<{ room: string; identity: string } | null>;
 }
 
 /** LiveKit's HTTP API uses http(s); clients connect over ws(s). */
@@ -34,6 +36,7 @@ function toHttpUrl(url: string): string {
 export function createLiveKitService(config: Config): MediaService {
   const rooms = new RoomServiceClient(config.LIVEKIT_API_URL ?? toHttpUrl(config.LIVEKIT_URL), config.LIVEKIT_API_KEY, config.LIVEKIT_API_SECRET);
   const receiver = new WebhookReceiver(config.LIVEKIT_API_KEY, config.LIVEKIT_API_SECRET);
+  const verifier = new TokenVerifier(config.LIVEKIT_API_KEY, config.LIVEKIT_API_SECRET);
 
   return {
     url: config.LIVEKIT_URL,
@@ -98,6 +101,16 @@ export function createLiveKitService(config: Config): MediaService {
 
     async receiveWebhook(body, authHeader) {
       return receiver.receive(body, authHeader);
+    },
+
+    async verifyJoinToken(token) {
+      try {
+        const claims = await verifier.verify(token);
+        if (!claims.video?.roomJoin || !claims.video.room || !claims.sub) return null;
+        return { room: claims.video.room, identity: claims.sub };
+      } catch {
+        return null;
+      }
     },
   };
 }

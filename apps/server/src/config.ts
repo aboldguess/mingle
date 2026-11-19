@@ -34,6 +34,8 @@ const envSchema = z.object({
   /** Optional URL the API uses for LiveKit's server API, when it differs (e.g. inside docker compose). */
   LIVEKIT_API_URL: optional,
   LIVEKIT_API_KEY: z.string().min(1),
+  /** LibreOffice binary used to turn PowerPoint decks into PDFs for the big screen. */
+  SOFFICE_PATH: z.string().default('soffice'),
   LIVEKIT_API_SECRET: z.string().min(1),
 
   STRIPE_SECRET_KEY: optional,

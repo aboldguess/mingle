@@ -1,9 +1,9 @@
-import { PreJoin, type LocalUserChoices } from '@livekit/components-react';
 import { DisconnectReason, Room, RoomEvent, VideoPresets } from 'livekit-client';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError, formatWhen, type JoinResult } from '../api';
-import { AvatarColorPicker, ProfileFields, savedAvatarColor, savedProfile, type ProfileInput } from '../components/AvatarColorPicker';
+import { savedAvatarColor, savedProfile, type ProfileInput } from '../components/AvatarColorPicker';
+import { type JoinChoices as LocalUserChoices, PreJoinStudio } from '../components/PreJoinStudio';
 import { Logo } from '../components/Logo';
 import { useSession } from '../session';
 import { venueAudioContext } from '../world/session';
@@ -89,7 +89,7 @@ export function MeetingPage() {
 
   return (
     <div className="prejoin">
-      <div className="card prejoin-card stack">
+      <div className={`card prejoin-card stack ${phase.kind === 'prejoin' ? 'prejoin-wide' : ''}`}>
         <Logo />
         {info && (
           <div>
@@ -111,18 +111,15 @@ export function MeetingPage() {
         {phase.kind === 'prejoin' && (
           <>
             {joinError && <div className="error" role="alert">{joinError}</div>}
-            <div data-lk-theme="default" style={{ borderRadius: 10, overflow: 'hidden' }}>
-              <PreJoin
-                defaults={{ username: me?.user.name ?? '', videoEnabled: true, audioEnabled: true }}
-                persistUserChoices
-                joinLabel={info?.isHost ? 'Open the venue' : 'Enter the venue'}
-                userLabel="Your name"
-                onSubmit={join}
-                onError={(e) => setJoinError(`Camera or microphone problem: ${e.message}. You can still join with them off.`)}
-              />
-            </div>
-            <ProfileFields value={profile} onChange={setProfile} />
-            <AvatarColorPicker value={color} onChange={setColor} />
+            <PreJoinStudio
+              defaultName={me?.user.name ?? ''}
+              color={color}
+              onColor={setColor}
+              profile={profile}
+              onProfile={setProfile}
+              joinLabel={info?.isHost ? 'Open the venue' : 'Enter the venue'}
+              onJoin={join}
+            />
             <p className="small muted" style={{ margin: 0 }}>Your webcam becomes the face on your avatar’s telly head. Walk up to people to talk.</p>
             {!me && <p className="small muted">Have an account? <Link to={`/login?next=/m/${code}`}>Sign in</Link> to join as yourself.</p>}
           </>
@@ -234,6 +231,8 @@ function LiveVenue({ info, join, choices, color, profile, onLeave }: { info: Mee
       title={info.title}
       code={info.code}
       isHost={join.isHost}
+      stageRestricted={join.stageRestricted}
+      joinToken={join.token}
       planLimitEndsAt={join.planLimitEndsAt}
       onLeave={() => {
         leftRef.current = true;

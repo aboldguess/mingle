@@ -95,6 +95,63 @@ describe('meetings', () => {
     expect(ctx.media.calls).toEqual(expect.arrayContaining([{ op: 'endRoom', args: [`mingle-${code}`] }]));
   });
 
+  it('marks pre-agreed presenters and ropes off the stage for everyone else', async () => {
+    const owner = await signUp(ctx.app);
+    const speaker = await signUp(ctx.app, 'Grace Hopper');
+    const { code } = await createMeeting(owner.client, owner.orgId, { presenterEmails: [speaker.email.toUpperCase()] });
+
+    const host = await owner.client.post(`/api/meetings/${code}/join`);
+    expect(host.data).toMatchObject({ isHost: true, isPresenter: true, stageRestricted: true });
+    const talk = await speaker.client.post(`/api/meetings/${code}/join`);
+    expect(talk.data).toMatchObject({ isHost: false, isPresenter: true, stageRestricted: true });
+    expect(ctx.media.grants.at(-1)!.metadata).toMatchObject({ isPresenter: true });
+    const guest = await new Client(ctx.app).post(`/api/meetings/${code}/join`, { displayName: 'Visitor' });
+    expect(guest.data).toMatchObject({ isPresenter: false, stageRestricted: true });
+
+    // Editing other settings keeps the list; clearing it opens the stage.
+    await owner.client.patch(`/api/meetings/${code}`, { title: 'Renamed' });
+    expect((await owner.client.get(`/api/meetings/${code}`)).data.meeting.presenterEmails).toEqual([speaker.email.toLowerCase()]);
+    await owner.client.patch(`/api/meetings/${code}`, { presenterEmails: [] });
+    expect((await new Client(ctx.app).post(`/api/meetings/${code}/join`, { displayName: 'Late' })).data.stageRestricted).toBe(false);
+    expect((await owner.client.post(`/api/orgs/${owner.orgId}/meetings`, { title: 'Bad', presenterEmails: ['not-an-email'] })).statusCode).toBe(400);
+  });
+
+  it('lets only the host mute a batch of people', async () => {
+    const owner = await signUp(ctx.app);
+    const { code } = await createMeeting(owner.client, owner.orgId);
+    const outsider = await signUp(ctx.app);
+    expect((await outsider.client.post(`/api/meetings/${code}/mute-many`, { identities: ['g_a'] })).statusCode).toBe(403);
+    const res = await owner.client.post(`/api/meetings/${code}/mute-many`, { identities: ['g_a', 'g_b'] });
+    expect(res.data).toEqual({ ok: true, muted: 2 });
+    expect(ctx.media.calls).toEqual(expect.arrayContaining([{ op: 'muteParticipant', args: [`mingle-${code}`, 'g_b'] }]));
+  });
+
+  it('only converts slides for people admitted to the event', async () => {
+    const owner = await signUp(ctx.app);
+    const { code } = await createMeeting(owner.client, owner.orgId);
+    const upload = (body: Buffer, token?: string) =>
+      ctx.app.inject({
+        method: 'POST',
+        url: `/api/meetings/${code}/slides/convert`,
+        payload: body,
+        headers: { 'content-type': 'application/octet-stream', origin: 'http://localhost:5173', ...(token ? { 'x-mingle-token': token } : {}) },
+      });
+    // Someone who merely knows the code can't queue conversions.
+    expect((await upload(Buffer.from('PK'))).statusCode).toBe(403);
+    expect((await upload(Buffer.from('PK'), 'forged')).statusCode).toBe(403);
+    const guest = await new Client(ctx.app).post(`/api/meetings/${code}/join`, { displayName: 'Speaker' });
+    const notDeck = await upload(Buffer.from('hello'), guest.data.token);
+    expect(notDeck.statusCode).toBe(400);
+    expect(notDeck.json().error.code).toBe('not_a_deck');
+    // A token for a different event doesn't count.
+    const other = await createMeeting(owner.client, owner.orgId);
+    const otherGuest = await new Client(ctx.app).post(`/api/meetings/${other.code}/join`, { displayName: 'Elsewhere' });
+    expect((await upload(Buffer.from('PK'), otherGuest.data.token)).statusCode).toBe(403);
+    // Outside an event (the solo demo) conversion needs an account.
+    const anon = await ctx.app.inject({ method: 'POST', url: '/api/slides/convert', payload: Buffer.from('PK'), headers: { 'content-type': 'application/octet-stream', origin: 'http://localhost:5173' } });
+    expect(anon.statusCode).toBe(401);
+  });
+
   it('blocks non-members when the org is members-only', async () => {
     const owner = await signUp(ctx.app);
     await owner.client.patch(`/api/orgs/${owner.orgId}`, { membersOnlyMeetings: true });
